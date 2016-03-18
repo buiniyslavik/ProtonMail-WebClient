@@ -489,12 +489,13 @@ angular.module("proton.modals", [])
     });
 })
 
-.factory('payModal', function(pmModal, Payment) {
+.factory('payModal', function(pmModal, Payment, notify) {
     return pmModal({
         controllerAs: 'ctrl',
         templateUrl: 'templates/modals/pay.tpl.html',
         controller: function(params) {
             // Variables
+            this.choice = 'card';
             this.amount = params.amount;
             this.amountDue = params.amountDue;
             this.credit = params.credit;
@@ -516,6 +517,8 @@ angular.module("proton.modals", [])
                 }).then(function(result) {
                     if (result.data && result.data.Code === 1000) {
                         params.close(true);
+                    } else if (result.data && result.data.Error) {
+                        notify({message: result.data.Error, classes: 'notification-danger'});
                     }
                 });
             }.bind(this);
@@ -523,6 +526,62 @@ angular.module("proton.modals", [])
             this.cancel = function() {
                 params.close();
             };
+
+            this.initPaypal = function() {
+                Payment.paypal({
+                    Amount: params.amountDue,
+                    Currency: params.currency
+                }).then(function(result) {
+                    if (result.data && result.data.Code === 1000) {
+                        this.approvalURL = result.data.ApprovalURL;
+                    } else if (result.data && result.data.Error){
+                        notify({message: result.data.Error, classes: 'notification-danger'});
+                    }
+                }.bind(this));
+            }.bind(this);
+
+            this.openPaypalTab = function() {
+                this.childWindow = window.open(this.approvalURL, 'PayPal');
+                window.addEventListener('message', this.receivePaypalMessage, false);
+            };
+
+            this.receivePaypalMessage = function(event) {
+                var origin = event.origin || event.originalEvent.origin; // For Chrome, the origin property is in the event.originalEvent object.
+
+                if (origin !== 'https://secure.protonmail.com') {
+                    return;
+                }
+
+                var paypalObject = event.data;
+
+                // we need to capitalize some stuff
+                if (paypalObject.payerID && paypalObject.paymentID) {
+                    paypalObject.PayerID = paypalObject.payerID;
+                    paypalObject.PaymentID = paypalObject.paymentID;
+
+                    // delete unused
+                    delete paypalObject.payerID;
+                    delete paypalObject.paymentID;
+                }
+
+                Payment.pay(params.invoice.ID, {
+                    Amount: params.amountDue,
+                    Currency: params.currency,
+                    Payment : {
+                        Type: 'paypal',
+                        Details: paypalObject
+                    }
+                }).then(function(result) {
+                    if (result.data && result.data.Code === 1000) {
+                        params.close(true);
+                    } else if (result.data && result.data.Error) {
+                        notify({message: result.data.Error, classes: 'notification-danger'});
+                    }
+                });
+
+                this.childWindow.close();
+                window.removeEventListener('message', this.receivePaypalMessage, false);
+            }.bind(this);
         }
     });
 })
@@ -546,11 +605,28 @@ angular.module("proton.modals", [])
         controllerAs: 'ctrl',
         templateUrl: 'templates/modals/payment/modal.tpl.html',
         controller: function(params) {
+
+            // IE11 doesn't support PayPal
+            if ($.browser.msie === true && $.browser.edge !== true) {
+                this.choices = [
+                    {value: 'card', label: $translate.instant('CREDIT_CARD')},
+                    {value: 'bitcoin', label: 'Bitcoin'}
+                ];
+            } else {
+                this.choices = [
+                    {value: 'card', label: $translate.instant('CREDIT_CARD')},
+                    {value: 'paypal', label: 'PayPal'},
+                    {value: 'bitcoin', label: 'Bitcoin'}
+                ];
+            }
+
             // Variables
-            this.process = false;
-            this.cardChange = true;
+            this.paypalNetworkError = false;
+            this.paypalAccessError = false;
+            this.choice = this.choices[0];
             this.displayCoupon = false;
             this.step = 'payment';
+            this.methods = [];
             this.number = '';
             this.fullname = '';
             this.month = '';
@@ -561,6 +637,7 @@ angular.module("proton.modals", [])
             this.valid = params.valid;
             this.base = CONSTANTS.BASE_SIZE;
             this.coupon = '';
+            this.childWindow = null;
             this.countries = tools.countries;
             this.country = _.findWhere(this.countries, {value: 'US'});
             this.plans = _.chain(params.plans)
@@ -569,21 +646,20 @@ angular.module("proton.modals", [])
                 .value();
             this.organizationName = $translate.instant('MY_ORGANIZATION'); // TODO set this value for the business plan
 
-            if(params.methods.length > 0) {
-                var card = params.methods[0];
-
-                this.methodID = card.ID;
-                this.number = '•••• •••• •••• ' + card.Details.Last4;
-                this.fullname = card.Details.Name;
-                this.month = card.Details.ExpMonth;
-                this.year = card.Details.ExpYear;
-                this.cvc = '•••';
-                this.cardChange = false;
-                this.country = _.findWhere(this.countries, {value: card.Details.Country});
-                this.zip = card.Details.ZIP;
-            }
-
             // Functions
+
+            var initialization = function() {
+                if (params.methods.length > 0) {
+                    this.methods = params.methods;
+                    this.method = this.methods[0];
+                }
+
+                if (angular.isDefined(params.choice)) {
+                    this.choice = _.findWhere(this.choices, {value: params.choice});
+                    this.changeChoice();
+                }
+            };
+
             /**
              * Generate key for the organization
              */
@@ -638,7 +714,7 @@ angular.module("proton.modals", [])
             }.bind(this);
 
             var validateCardNumber = function() {
-                if (this.cardChange === true && this.valid.AmountDue > 0) {
+                if (this.methods.length === 0 && this.valid.AmountDue > 0) {
                     return Payment.validateCardNumber(this.number);
                 } else {
                     return Promise.resolve();
@@ -646,7 +722,7 @@ angular.module("proton.modals", [])
             }.bind(this);
 
             var validateCardExpiry = function() {
-                if (this.cardChange === true && this.valid.AmountDue > 0) {
+                if (this.methods.length === 0 && this.valid.AmountDue > 0) {
                     return Payment.validateCardExpiry(this.month, this.year);
                 } else {
                     return Promise.resolve();
@@ -654,7 +730,7 @@ angular.module("proton.modals", [])
             }.bind(this);
 
             var validateCardCVC = function() {
-                if (this.cardChange === true && this.valid.AmountDue > 0) {
+                if (this.methods.length === 0 && this.valid.AmountDue > 0) {
                     return Payment.validateCardCVC(this.cvc);
                 } else {
                     return Promise.resolve();
@@ -664,9 +740,10 @@ angular.module("proton.modals", [])
             var method = function() {
                 var deferred = $q.defer();
 
-                if (this.cardChange === true && this.valid.AmountDue > 0) {
+                if (this.methods.length === 0 && this.valid.AmountDue > 0) {
                     var year = (this.year.length === 2) ? '20' + this.year : this.year;
 
+                    // Add payment method
                     Payment.updateMethod({
                         Type: 'card',
                         Details: {
@@ -685,8 +762,10 @@ angular.module("proton.modals", [])
                             deferred.reject(new Error(result.data.Error));
                         }
                     });
+                } else if (this.valid.AmountDue > 0) {
+                    deferred.resolve(this.method.ID);
                 } else {
-                    deferred.resolve(this.methodID);
+                    deferred.resolve();
                 }
 
                 return deferred.promise;
@@ -712,10 +791,39 @@ angular.module("proton.modals", [])
                 return deferred.promise;
             }.bind(this);
 
+            var chargePaypal = function(paypalObject) {
+                var deferred = $q.defer();
+
+                Payment.subscribe({
+                    Amount : this.valid.AmountDue,
+                    Currency : params.valid.Currency,
+                    CouponCode : this.coupon,
+                    PlanIDs: params.planIDs,
+                    Payment : {
+                        Type: 'paypal',
+                        Details: paypalObject
+                    }
+                }).then(function(result) {
+                    if (result.data && result.data.Code === 1000) {
+                        deferred.resolve();
+                    } else if (result.data && result.data.Error) {
+                        deferred.reject(new Error(result.data.Error));
+                    } else {
+                        deferred.reject(new Error('Error connecting to PayPal.'));
+                    }
+                });
+
+                return deferred.promise;
+            }.bind(this);
+
             var finish = function(subscription) {
-                this.process = 'thanks';
+                this.step = 'thanks';
                 params.change();
             }.bind(this);
+
+            this.label = function(method) {
+                return '•••• •••• •••• ' + method.Details.Last4;
+            };
 
             this.submit = function() {
                 // Change process status true to disable input fields
@@ -750,8 +858,8 @@ angular.module("proton.modals", [])
                 return count;
             };
 
-            this.yearly = function() {
-                params.yearly();
+            this.switch = function(cycle, currency) {
+                params.switch(cycle, currency);
             };
 
             this.apply = function() {
@@ -774,6 +882,81 @@ angular.module("proton.modals", [])
                 }.bind(this));
             }.bind(this);
 
+            this.changeChoice = function() {
+                if (this.choice.value === 'paypal') {
+                    if (this.valid.Currency === 'USD' && this.valid.Cycle === 12) {
+                        this.initPaypal();
+                    } else if (this.valid.Currency === 'USD' && this.valid.Cycle === 1) {
+                        this.paypalAccessError = 1; // We only accept PayPal for annual subscriptions, click here to switch to an annual subscription. [Change Subscription]
+                    } else if (this.valid.Currency !== 'USD' && this.valid.Cycle === 1) {
+                        this.paypalAccessError = 2; // We only accept PayPal for annual subscriptions. PayPal is also only accepted for USD plans. Click here to switch to an annual USD subscription. [Change Subscription]
+                    } else if (this.valid.Currency !== 'USD' && this.valid.Cycle === 12) {
+                        this.paypalAccessError = 3; // All PayPal orders are charged in USD, click here to change your subscription to USD. [Change Subscription]
+                    }
+                }
+            };
+
+            this.initPaypal = function() {
+                this.paypalNetworkError = false;
+
+                Payment.paypal({
+                    Amount : this.valid.AmountDue,
+                    Currency : this.valid.Currency // Only USD allowed for now
+                }).then(function(result) {
+                    if (result.data && result.data.Code === 1000) {
+                        if (result.data.ApprovalURL) {
+                            this.approvalURL = result.data.ApprovalURL;
+                        }
+                    } else if (result.data.Code === 22802) {
+                        this.paypalNetworkError = true;
+                    } else if (result.data && result.data.Error){
+                        notify({message: result.data.Error, classes: 'notification-danger'});
+                    }
+                }.bind(this));
+            }.bind(this);
+
+            /**
+             * Open Paypal website in a new tab
+             */
+            this.openPaypalTab = function() {
+                this.childWindow = window.open(this.approvalURL, 'PayPal');
+                window.addEventListener('message', this.receivePaypalMessage, false);
+            };
+
+            this.receivePaypalMessage = function(event) {
+                var origin = event.origin || event.originalEvent.origin; // For Chrome, the origin property is in the event.originalEvent object.
+
+                if (origin !== 'https://secure.protonmail.com') {
+                    return;
+                }
+
+                var paypalObject = event.data;
+
+                // we need to capitalize some stuff
+                if (paypalObject.payerID && paypalObject.paymentID) {
+                    paypalObject.PayerID = paypalObject.payerID;
+                    paypalObject.PaymentID = paypalObject.paymentID;
+
+                    // delete unused
+                    delete paypalObject.payerID;
+                    delete paypalObject.paymentID;
+                }
+
+                this.step = 'process';
+
+                chargePaypal(paypalObject)
+                .then(organizationKey)
+                .then(createOrganization)
+                .then(finish)
+                .catch(function(error) {
+                    notify({message: error, classes: 'notification-danger'});
+                    this.step = 'payment';
+                }.bind(this));
+
+                this.childWindow.close();
+                window.removeEventListener('message', this.receivePaypalMessage, false);
+            }.bind(this);
+
             /**
              * Close payment modal
              */
@@ -782,6 +965,8 @@ angular.module("proton.modals", [])
                     params.cancel();
                 }
             };
+
+            initialization();
         }
     });
 })
@@ -1314,6 +1499,7 @@ angular.module("proton.modals", [])
             this.process = false;
             this.text = params.message || 'Donate to ProtonMail';
             this.amount = params.amount || 25;
+            this.methods = [];
             this.currencies = [
                 {label: 'USD', value: 'USD'},
                 {label: 'EUR', value: 'EUR'},
@@ -1331,6 +1517,11 @@ angular.module("proton.modals", [])
 
             if (angular.isDefined(params.currency)) {
                 this.currency = _.findWhere(this.currencies, {value: params.currency});
+            }
+
+            if (angular.isDefined(params.methods) && params.methods.length > 0) {
+                this.methods = params.methods;
+                this.method = this.methods[0];
             }
 
             // Functions
@@ -1369,6 +1560,16 @@ angular.module("proton.modals", [])
                });
             }.bind(this);
 
+            var donatationWithMethod = function() {
+                this.process = true;
+
+                return Payment.donate({
+                    Amount: this.amount * 100, // Don't be afraid
+                    Currency: this.currency.value,
+                    PaymentMethodID: this.method.ID
+                });
+            }.bind(this);
+
             var finish = function(result) {
                 var deferred = $q.defer();
 
@@ -1387,15 +1588,29 @@ angular.module("proton.modals", [])
                 return deferred.promise;
             }.bind(this);
 
+            this.label = function(method) {
+                return '•••• •••• •••• ' + method.Details.Last4;
+            };
+
             this.donate = function() {
-                var promise = validateCardNumber()
-                .then(validateCardExpiry)
-                .then(validateCardCVC)
-                .then(donatation)
-                .then(finish)
-                .catch(function(error) {
-                    notify({message: error, classes: 'notification-danger'});
-                });
+                var promise;
+
+                if (this.methods.length > 0) {
+                    promise = donatationWithMethod()
+                    .then(finish)
+                    .catch(function(error) {
+                        notify({message: error, classes: 'notification-danger'});
+                    });
+                } else {
+                    promise = validateCardNumber()
+                    .then(validateCardExpiry)
+                    .then(validateCardCVC)
+                    .then(donatation)
+                    .then(finish)
+                    .catch(function(error) {
+                        notify({message: error, classes: 'notification-danger'});
+                    });
+                }
 
                 networkActivityTracker.track(promise);
             };
@@ -1453,7 +1668,12 @@ angular.module("proton.modals", [])
             this.local = '';
             this.members = params.members;
             this.member = params.members[0]; // TODO in the future we should add a select to choose a member
-            this.domains = params.domains;
+            this.domains = [];
+
+            _.each(params.domains, function(domain) {
+                this.domains.push({label: domain, value: domain});
+            }.bind(this));
+
             this.domain = this.domains[0];
 
             // Functions
@@ -1473,6 +1693,30 @@ angular.module("proton.modals", [])
                     }.bind(this))
                 );
             }.bind(this);
+
+            this.cancel = function() {
+                params.cancel();
+            };
+        }
+    });
+})
+
+// edit address modal
+.factory('identityModal', function(pmModal, authentication) {
+    return pmModal({
+        controllerAs: 'ctrl',
+        templateUrl: 'templates/modals/identity.tpl.html',
+        controller: function(params) {
+            this.defaultDisplayName = authentication.user.DisplayName;
+            this.defaultSignature = authentication.user.Signature;
+            this.address = params.address;
+            this.address.DisplayName = this.address.DisplayName || authentication.user.DisplayName;
+            this.address.Signature = this.address.Signature || authentication.user.Signature;
+            this.address.custom = true;
+
+            this.confirm = function() {
+                params.confirm(this.address);
+            };
 
             this.cancel = function() {
                 params.cancel();

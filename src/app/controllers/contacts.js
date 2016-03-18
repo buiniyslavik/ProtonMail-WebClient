@@ -17,6 +17,7 @@ angular.module("proton.controllers.Contacts", [
     contactModal,
     alertModal,
     dropzoneModal,
+    eventManager,
     Message,
     networkActivityTracker,
     notify
@@ -32,7 +33,18 @@ angular.module("proton.controllers.Contacts", [
     $scope.sortBy = 'Name';
 
     // Listeners
-    $scope.$on('updateContacts', $scope.updateContacts);
+    $scope.$on('deleteContact', function(event, ID) {
+        $scope.updateContacts();
+    });
+
+    $scope.$on('createContact', function(event, ID, contact) {
+        $scope.updateContacts();
+    });
+
+    $scope.$on('updateContact', function(event, ID, contact) {
+        $scope.updateContacts();
+    });
+
     $scope.$on('searchContacts', function(event, keyword) {
         $scope.params.searchContactInput = keyword;
         $scope.refreshContacts(true);
@@ -40,44 +52,43 @@ angular.module("proton.controllers.Contacts", [
 
     // Methods
     $scope.initialization = function() {
-        $scope.contacts = $scope.contactsFiltered();
+        $scope.updateContacts();
     };
 
     $scope.contactsFiltered = function(searching) {
         var contacts = authentication.user.Contacts;
-
-        function pagination(contacts) {
+        var pagination = function (contacts) {
             var begin, end;
 
             begin = ($scope.currentPage - 1) * $scope.numPerPage;
             end = begin + $scope.numPerPage;
 
             return contacts.slice(begin, end);
-        }
+        };
 
-        function orderBy(contacts) {
+        var orderBy = function(contacts) {
             var result = $filter('orderBy')(contacts, $scope.sortBy);
 
             $scope.totalItems = result.length;
 
             return result;
-        }
+        };
 
-        function search(contacts) {
+        var search = function(contacts) {
             var byName = $filter('filter')(contacts, {Name: $scope.params.searchContactInput});
             var byEmail = $filter('filter')(contacts, {Email: $scope.params.searchContactInput});
 
             return _.union(byName, byEmail);
-        }
+        };
 
-        if(searching === true) {
+        if (searching === true) {
             $scope.currentPage = 1;
         }
 
-        return pagination(orderBy(search(authentication.user.Contacts)));
+        return pagination(orderBy(search(contacts)));
     };
 
-    $scope.updateContacts = function (){
+    $scope.updateContacts = function() {
         $scope.contacts = $scope.contactsFiltered();
     };
 
@@ -122,12 +133,10 @@ angular.module("proton.controllers.Contacts", [
                 title: title,
                 message: message,
                 confirm: function() {
-                    authentication.user.Contacts = [];
-                    $scope.contacts = $scope.contactsFiltered();
-
                     networkActivityTracker.track(
                         Contact.clear().then(function(response) {
                             notify({message: $translate.instant('CONTACTS_DELETED'), classes: 'notification-success'});
+                            eventManager.call();
                         }, function(response) {
                             $log.error(response);
                         })
@@ -147,10 +156,10 @@ angular.module("proton.controllers.Contacts", [
 
         if (contactsSelected.length === 1) {
             title = $translate.instant('DELETE_CONTACT');
-            message = 'Are you sure you want to delete this contact?'; // TODO translate
+            message = 'Are you sure you want to delete this contact?';
         } else {
             title = $translate.instant('DELETE_CONTACTS');
-            message = 'Are you sure you want to delete the selected contacts?'; // TODO translate
+            message = 'Are you sure you want to delete the selected contacts?';
         }
 
         confirmModal.activate({
@@ -158,28 +167,21 @@ angular.module("proton.controllers.Contacts", [
                 title: title,
                 message: message,
                 confirm: function() {
-                    deletedIDs = [];
-                    deletedContacts = [];
+                    var deletedIDs = [];
+                    var deletedContacts = [];
+
                     _.forEach(contactsSelected, function(contact) {
                         deletedIDs.push(contact.ID.toString());
                         deletedContacts.push(contact);
                     });
 
-                    authentication.user.Contacts = _.difference(authentication.user.Contacts, deletedContacts);
-                    $scope.contacts = $scope.contactsFiltered();
-
                     networkActivityTracker.track(
                         Contact.delete({
-                            "IDs" : deletedIDs
+                            IDs : deletedIDs
                         }).then(function(response) {
-                            _.forEach(response.data.Responses, function(d, i) {
-                                if(d.Response.Code !== 1000) {
-                                    notify({message: deletedContacts[i].Email + ' ' + $translate.instant('NOT_DELETED'), classes: 'notification-danger'});
-                                    authentication.user.Contacts.push(deletedContacts[i]);
-                                }
-                            });
                             notify({message: $translate.instant('CONTACTS_DELETED'), classes: 'notification-success'});
                             confirmModal.deactivate();
+                            eventManager.call();
                         }, function(error) {
                             notify({message: error, classes: 'notification-danger'});
                             $log.error(error);
@@ -212,10 +214,9 @@ angular.module("proton.controllers.Contacts", [
                         Contacts : contactList
                     }).then(function(response) {
                         if(response.data.Code === 1001) {
-                            authentication.user.Contacts.push(response.data.Responses[0].Response.Contact);
-                            $scope.contacts = $scope.contactsFiltered();
                             notify({message: $translate.instant('CONTACT_ADDED'), classes: 'notification-success'});
                             contactModal.deactivate();
+                            eventManager.call();
                         } else {
                             notify({message: response.data.Responses[0].Error, classes: 'notification-danger'});
                             $log.error(response);
@@ -231,38 +232,29 @@ angular.module("proton.controllers.Contacts", [
 
     $scope.editContact = function(contact) {
         openContactModal($translate.instant('EDIT_CONTACT'), contact.Name, contact.Email, function(name, email) {
-            var match = _.findWhere(authentication.user.Contacts, {Email: email});
-
-            if (match && email !== contact.Email) {
-                notify({message: "Contact exists for this email address", classes: 'notification-danger'}); // TODO translate
-                contactModal.deactivate();
-            } else {
-                contact.Name = name;
-                contact.Email = email;
-                networkActivityTracker.track(
-                    Contact.edit({
-                        "Name": name,
-                        "Email": email,
-                        "id": contact.ID
-                    }).then(function(response) {
-                        if(response.data.Code === 1000) {
-                            contactModal.deactivate();
-                            notify({message: $translate.instant('CONTACT_EDITED'), classes: 'notification-success'});
-                        } else {
-                            notify({message: response.data.Error, classes: 'notification-danger'});
-                        }
-                    }, function(response) {
-                        notify({message: response, classes: 'notification-danger'});
-                        $log.error(response);
-                    })
-                );
-            }
-
+            networkActivityTracker.track(
+                Contact.edit({
+                    id: contact.ID,
+                    Name: name,
+                    Email: email
+                }).then(function(response) {
+                    if(response.data.Code === 1000) {
+                        contactModal.deactivate();
+                        notify({message: $translate.instant('CONTACT_EDITED'), classes: 'notification-success'});
+                        eventManager.call();
+                    } else {
+                        notify({message: response.data.Error, classes: 'notification-danger'});
+                    }
+                }, function(response) {
+                    notify({message: response, classes: 'notification-danger'});
+                    $log.error(response);
+                })
+            );
         });
     };
 
     $scope.onSelectContact = function(event, contact) {
-        if(!lastChecked) {
+        if (!lastChecked) {
             lastChecked = contact;
         } else {
             if (event.shiftKey) {

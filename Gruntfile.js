@@ -3,7 +3,7 @@
 
 var _ = require("lodash"),
 util = require("util");
-var appVersion = '3.1.2';
+var appVersion = '3.1.4';
 var apiVersion = '1';
 var dateVersion = new Date().toDateString();
 var clientID = 'Angular';
@@ -103,6 +103,7 @@ module.exports = function(grunt) {
             default_options: {
                 src: ["<%= app_files.js %>", "<%= app_files.atpl %>", "<%= app_files.ctpl %>", "<%= app_files.html %>"],
                 dest: "src/assets/locales",
+                lang: ['fr_FR', 'en_US', 'de_DE', 'it_IT', 'es_ES'],
                 lang: ['fr_FR', 'en_US', 'de_DE', 'it_IT', 'es_ES', 'nl_NL'],
                 defaultLang: "en_US",
                 prefix: "",
@@ -404,8 +405,7 @@ module.exports = function(grunt) {
         delta: {
             options: {
                 livereload: 40093,
-                spawn: false,
-                // interrupt: !grunt.option("no-watch-interrupt")
+                spawn: false
             },
 
             html: {
@@ -451,14 +451,24 @@ module.exports = function(grunt) {
 
         shell: {
             setup_dist: {
-                command: [
-                    "mkdir dist && cd dist",
-                    "git init",
-                    "git remote add origin git@github.com:ProtonMail/Angular.git",
-                    "git fetch origin",
-                    "git checkout -b deploy3 origin/deploy3",
-                    "rm -rf *"
-                ].join("&&")
+                command: function() {
+                    var commands = [];
+                    var option = 'deploy3';
+
+                    if (grunt.option('dest')) {
+                        option = grunt.option('dest');
+                    }
+
+                    commands.push('mkdir dist');
+                    commands.push('cd dist');
+                    commands.push('git init');
+                    commands.push('git remote add origin git@github.com:ProtonMail/Angular.git');
+                    commands.push('git fetch origin');
+                    commands.push('git checkout -b ' + option + ' origin/' + option);
+                    commands.push('rm -rf *');
+
+                    return commands.join('&&');
+                }
             },
             push: {
                 command: [
@@ -468,13 +478,7 @@ module.exports = function(grunt) {
                     "git commit -m \"New Release\"",
                     "git push"
                 ].join("&&")
-            },
-            bower: {
-                command: [
-                    // "[ -d vendor/ ] && rm -r vendor",
-                    "bower update"
-                ].join("&&")
-            },
+            }
 
         },
 

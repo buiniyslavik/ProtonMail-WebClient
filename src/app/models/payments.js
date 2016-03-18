@@ -17,6 +17,14 @@ angular.module("proton.models.payments", [])
             return $http.post(url.get() + '/payments/unsubscribe', Obj);
         },
         /**
+         * Create Paypal Payment
+         * @param {Object} params
+         * @return {Promise}
+         */
+        paypal: function(params) {
+            return $http.post(url.get() + '/payments/paypal', params);
+        },
+        /**
          * Get invoices in reverse time order
          * @param {Object} params
          * @return {Promise}
@@ -45,6 +53,7 @@ angular.module("proton.models.payments", [])
          pay: function(id, params) {
             return $http.post(url.get() + '/payments/invoices/' + id, params);
          },
+
         /**
          * Get plans available to user
          */
@@ -189,7 +198,7 @@ angular.module("proton.models.payments", [])
         user: function(timestamp, limit) {
             return $http.get(url.get() + '/payments/user', {
                 params: {
-                    Time: timestamp,
+                    Time: timestamp,//
                     Limit: limit
                 },
                 transformResponse: function(data, headersGetter, status) {

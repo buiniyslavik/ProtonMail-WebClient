@@ -314,9 +314,7 @@ angular.module("proton.controllers.Compose", ["proton.constants"])
 
                     totalSize += angular.isDefined(message.queuedFilesSize) ? message.queuedFilesSize : 0;
                     totalSize += file.size;
-
                     $scope.isOver = false;
-
                     dropzone = this;
 
                     var total_num = angular.isDefined(message.Attachments) ? message.Attachments.length : 0;
@@ -564,7 +562,7 @@ angular.module("proton.controllers.Compose", ["proton.constants"])
         message.uploading = 0;
         $scope.messages.unshift(message);
         $scope.setDefaults(message);
-        $scope.completedSignature(message);
+        $scope.insertSignature(message);
         $scope.sanitizeBody(message);
         $scope.decryptAttachments(message);
 
@@ -654,14 +652,31 @@ angular.module("proton.controllers.Compose", ["proton.constants"])
         });
     };
 
-    $scope.completedSignature = function(message) {
+    /**
+     * Insert signature in the message body
+     * @param {Object} message
+     */
+    $scope.insertSignature = function(message) {
         if (angular.isUndefined(message.Body)) {
-            var signature = DOMPurify.sanitize('<div>' + tools.replaceLineBreaks(authentication.user.Signature) + '</div>', {
+            var content;
+            var space = '<br /><br />';
+
+            if (message.From.Signature === null) {
+                content = authentication.user.Signature;
+            } else {
+                content = message.From.Signature;
+            }
+
+            var signature = DOMPurify.sanitize('<div class="protonmail_signature_block">' + tools.replaceLineBreaks(content) + '</div>', {
                 ADD_ATTR: ['target'],
                 FORBID_TAGS: ['style', 'input', 'form']
             });
 
-            message.Body = ($(signature).text().length === 0 && $(signature).find('img').length === 0)? "" : "<br /><br />" + signature;
+            if ($(signature).text().length === 0 && $(signature).find('img').length === 0) {
+                message.Body = space;
+            } else {
+                message.Body = space + signature;
+            }
         }
     };
 
@@ -982,6 +997,29 @@ angular.module("proton.controllers.Compose", ["proton.constants"])
     };
 
     /**
+     * Call when the user change the FROM
+     * @param {Resource} message - Message to save
+     */
+    $scope.changeFrom = function(message) {
+        var currentBody = $.parseHTML(message.Body);
+        var tempDOM = $('<div>').append(currentBody);
+        var signature = tempDOM.find('.protonmail_signature_block').first().html();
+
+        if (signature && signature.length > 0) {
+            if (message.From.Signature === null) {
+                tempDOM.find('.protonmail_signature_block').html(authentication.user.Signature);
+            } else {
+                tempDOM.find('.protonmail_signature_block').html(message.From.Signature);
+            }
+
+            message.Body = tempDOM.html();
+        }
+
+        // save when DOM is updated
+        $scope.save(message, false, false, true);
+    };
+
+    /**
      * Save the Message
      * @param {Resource} message - Message to save
      * @param {Boolean} forward - Forward case
@@ -1203,8 +1241,8 @@ angular.module("proton.controllers.Compose", ["proton.constants"])
     $scope.send = function(message) {
         var deferred = $q.defer();
         var validate = $scope.validate(message);
-
-        if(validate) {
+        
+        if (validate) {
             $scope.save(message, false, false, false)
             .then(function() {
                 $scope.checkSubject(message).then(function() {

@@ -30,6 +30,7 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
 ) {
     var lastChecked = null;
     var unbindWatcherElements;
+    var firstLoad = true; // Variable used to determine if it's the first load to force the cache to call back-end result
 
     /**
      * Method called at the initialization of this controller
@@ -52,6 +53,46 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
         }, function(error) {
             $log.error(error);
         });
+        $scope.setTimeWidths();
+
+    };
+
+    $scope.setTimeWidths = function() {
+
+        // Dec 28, 2888 - longest possible width
+        var time = '29000668525';
+
+        // initalize to zero
+        var width = 0;
+
+         // convert timestamp to readabile, LOCALIZED time format
+        time = $filter('readableTime')(time);
+
+        // append to DOM:
+        $('body').append('<div id="timeWidthTest" style="position:absolute;left:0;top:0;z-index:1;visibility:hidden">');
+        $('#timeWidthTest').text(time);
+
+        // get the width
+        width = $('#timeWidthTest').outerWidth();
+
+        // add 10% for safety
+        width = width * 1;
+
+        // round up to a whole integer
+        width = Math.ceil(width);
+
+        // if width isnt zero, we're probably good
+        if (width > 0) {
+
+            // lets set some CSS to update our time elements
+            var style = "<style>.conversation .row .meta em.time { width: "+ width +"px !important; } .conversation .row .meta { width: "+ (width+40) +"px !important;} .conversation .row h4 { width: calc(100% - "+ (width+75) +"px) !important; }</style>";
+
+            // inject CSS into DOM
+            $('body').append(style);
+
+        }
+
+        $('#timeWidthTest').remove();
 
     };
 
@@ -98,6 +139,14 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
 
             return recipients;
         }
+    };
+
+    /**
+     * Return if we can display the placeholder or not
+     * @param {Boolean}
+     */
+    $scope.placeholder = function() {
+        return $rootScope.layoutMode === 'columns' && ($rootScope.idDefined() === false || ($rootScope.idDefined() === true && $rootScope.numberElementChecked > 0));
     };
 
     $scope.startWatchingEvent = function() {
@@ -237,9 +286,9 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
         var promise;
 
         if(type === 'message') {
-            promise = cache.queryMessages(request);
+            promise = cache.queryMessages(request, firstLoad);
         } else if(type === 'conversation') {
-            promise = cache.queryConversations(request);
+            promise = cache.queryConversations(request, firstLoad);
         }
 
         promise.then(function(elements) {
@@ -247,6 +296,7 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
 
             $scope.conversations = elements;
             $scope.watchElements();
+            firstLoad = false;
 
             if($scope.conversations.length === 0 && page > 0) {
                 $scope.back();
