@@ -6,9 +6,6 @@ html.protonmail {
 		.mobileOnly {
 			display: none;
 		}
-		.desktopOnly {
-			display: block;
-		}
 		&.secure {
 			background: $white;
 		}
@@ -22,9 +19,6 @@ html.protonmail {
 			overflow: initial !important;
 			.mobileOnly {
 				display: block;
-			}
-			.desktopOnly {
-				display: none;
 			}
 			&.locked {
 				overflow: initial !important;
@@ -92,6 +86,9 @@ html.protonmail {
 	}
 	.margin-left {
 		margin-left: 10px;
+	}
+	.no-margin {
+		margin: 0;
 	}
 	.dull {
 		opacity: .5;

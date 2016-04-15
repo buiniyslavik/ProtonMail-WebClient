@@ -13,7 +13,7 @@ angular.module("proton.controllers.Outside", [
     $state,
     $stateParams,
     $timeout,
-    $translate,
+    gettextCatalog,
     Attachment,
     CONSTANTS,
     Eo,
@@ -31,26 +31,24 @@ angular.module("proton.controllers.Outside", [
     var password = pmcw.decode_utf8_base64(window.sessionStorage["proton:encrypted_password"]);
     var token_id = $stateParams.tag;
 
-    $scope.message = message;
+    $scope.initialization = function() {
+        if (message.displayMessage === true) {
+            message.Body = $scope.clean(message.Body);
+            message.imagesHidden = tools.containsImage(message.Body);
 
-    if (message.displayMessage === true) {
-        $timeout(function() {
-            $scope.message.Body = $scope.clean($scope.message.Body);
-            $scope.message.imagesHidden = tools.containsImage($scope.message.Body);
-
-            _.each($scope.message.Replies, function(reply) {
+            _.each(message.Replies, function(reply) {
                 reply.Body = $scope.clean(reply.Body);
             });
-        });
-    }
+        }
 
-    $timeout(function() {
+        $scope.message = message;
+
         $('#inputFile').change(function(event) {
             event.preventDefault();
 
             var files = $('#inputFile')[0].files;
 
-            for(var i = 0; i<files.length; i++) {
+            for (var i = 0; i<files.length; i++) {
                 var file = files[i];
 
                 if (file.size > CONSTANTS.ATTACHMENT_SIZE_LIMIT * CONSTANTS.BASE_SIZE * CONSTANTS.BASE_SIZE) {
@@ -60,26 +58,30 @@ angular.module("proton.controllers.Outside", [
                 }
             }
         });
-    }, 100);
 
-    // start timer ago
-    $scope.agoTimer = $interval(function() {
-        // Redirect to unlock view if the message is expired
-        if ($scope.isExpired()) {
-            $state.go('eo.unlock', {tag: $stateParams.tag});
-        }
-    }, 1000);
+        // start timer ago
+        $scope.agoTimer = $interval(function() {
+            // Redirect to unlock view if the message is expired
+            if ($scope.isExpired()) {
+                $state.go('eo.unlock', {tag: $stateParams.tag});
+            }
+        }, 1000);
 
-    $scope.$on('$destroy', function() {
-        // cancel timer ago
-        $interval.cancel($scope.agoTimer);
-    });
+        $scope.$on('$destroy', function() {
+            // cancel timer ago
+            $interval.cancel($scope.agoTimer);
+        });
+    };
 
     /**
      * Determine if the message is expire
      */
     $scope.isExpired = function() {
-        return $scope.message.ExpirationTime < moment().unix();
+        if (angular.isDefined($scope.message)) {
+            return $scope.message.ExpirationTime < moment().unix();
+        } else {
+            return false;
+        }
     };
 
     /**
@@ -139,17 +141,17 @@ angular.module("proton.controllers.Outside", [
                 .then(
                     function(result) {
                         $state.go('eo.message', {tag: $stateParams.tag});
-                        notify({message: $translate.instant('MESSAGE_SENT'), classes: 'notification-success'});
+                        notify({message: gettextCatalog.getString('Message sent', null), classes: 'notification-success'});
                         deferred.resolve(result);
                     },
                     function(error) {
-                        error.message = 'Error during the reply process'; // TODO send to back-end
+                        error.message = gettextCatalog.getString('Error during the reply process', null, 'Error');
                         deferred.reject(error);
                     }
                 );
             },
             function(error) {
-                error.message = 'Error during the encryption'; // TODO send to back-end
+                error.message = gettextCatalog.getString('Error during the encryption', null, 'Error');
                 deferred.reject(error);
             }
         );
@@ -239,7 +241,12 @@ angular.module("proton.controllers.Outside", [
     };
 
     $scope.decryptAttachment = function(attachment, $event) {
+
         $event.preventDefault();
+
+        if ($state.includes('eo.reply')) {
+            return;
+        }
 
         var link = angular.element($event.target);
         var href = link.attr('href');
@@ -330,4 +337,6 @@ angular.module("proton.controllers.Outside", [
     $scope.removeAttachment = function(attachment) {
         $scope.message.Attachments = _.without(message.Attachments, attachment);
     };
+
+    $scope.initialization();
 });

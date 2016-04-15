@@ -232,12 +232,37 @@
             width: 9rem;
         }
     }
-    #invoicesTable {
-        .actions {
-            width: 3.5rem;
+    #paymentMethodsTable {
+        .number {
+            width: auto;
         }
-        .price {
-            width: 3.5rem;
+        .expiration {
+            width: 9rem;
+        }
+        .type {
+            width: 9rem;
+        }
+        .actions {
+            width: 9rem;
+            text-align: right;
+        }
+    }
+    #invoicesTable {
+        .invoice {
+            width: 5rem;
+        }
+        .type {
+            width: 8rem;
+        }
+        .status {
+            width: 8rem;
+        }
+        .time {
+            width: 8rem;
+        }
+        .actions {
+            width: 9rem;
+            text-align: right;
         }
     }
     #tableSubscription {
@@ -535,6 +560,7 @@ body.mobileMode {
 
         .settings {
             padding: 0 10px;
+            height: initial;
             .pm_sort ul {
                 border-right: 1rem solid $border;
                 margin-bottom: 1rem;
@@ -797,9 +823,6 @@ body.mobileMode {
                         code {
                             display: none;
                         }
-                        code.mobileOnly {
-                            display: block;
-                        }
                     }
                 }
             }
@@ -839,5 +862,32 @@ body.mobileMode {
     #settingsDomains,
     #settingsAddresses {
         display: none;
+    }
+    .pm_buttons.paginator {
+        margin: 0 1rem;
+    }
+    #invoicesTable {
+        display: none;
+    }
+    #invoicesList {
+        &, li {
+            display: block;
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+        li {
+            margin-bottom: 1rem;
+            border: 1px solid $border;
+            p {
+                display: block;
+                border-bottom: 1px solid $border;
+                padding: .5rem 1rem;
+                margin: 0;
+                &.title {
+                    background: $read;
+                }
+            }
+        }
     }
 }

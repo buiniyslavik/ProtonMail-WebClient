@@ -1,7 +1,5 @@
-angular.module("proton.attachments", [
-    "proton.authentication"
-])
-.service("attachments", function(
+angular.module('proton.attachments', ['proton.authentication'])
+.service('attachments', function(
     $http,
     $log,
     $window,
@@ -12,6 +10,7 @@ angular.module("proton.attachments", [
     url,
     pmcw,
     errorReporter,
+    gettextCatalog,
     CONSTANTS,
     CONFIG
 ) {
@@ -97,7 +96,7 @@ angular.module("proton.attachments", [
 
                 if (statusCode !== 200) {
                     // Error with the request
-                    notify({message: 'Unable to upload file. Please try again.', classes: 'notification-danger'}); // TODO translate
+                    notify({message: gettextCatalog.getString('Unable to upload file. Please try again', null, 'Error'), classes: 'notification-danger'});
                     deferred.reject(response);
                 } else if (response.Error !== undefined) {
                     if (validJSON) {
@@ -105,7 +104,7 @@ angular.module("proton.attachments", [
                         notify({message: response.Error, classes: 'notification-danger'});
                         deferred.reject(response);
                     } else {
-                        notify({message: $translate.instant('UNABLE_TO_UPLOAD'), classes: 'notification-danger'});
+                        notify({message: gettextCatalog.getString('Unable to upload file. Please try again', null, 'Error'), classes: 'notification-danger'});
                         deferred.reject(response);
                     }
                 } else {
@@ -143,74 +142,6 @@ angular.module("proton.attachments", [
             $(elem).css({'background' : '-o-linear-gradient(left,      rgba(' + CONSTANTS.UPLOAD_GRADIENT_DARK + ', 1) ' + progress + '%, rgba(' + CONSTANTS.UPLOAD_GRADIENT_LIGHT + ', 1) ' + 0 + '%)'});
             $(elem).css({'background' : '-ms-linear-gradient(left,     rgba(' + CONSTANTS.UPLOAD_GRADIENT_DARK + ', 1) ' + progress + '%, rgba(' + CONSTANTS.UPLOAD_GRADIENT_LIGHT + ', 1) ' + 0 + '%)'});
             $(elem).css({'background' : 'linear-gradient(left,         rgba(' + CONSTANTS.UPLOAD_GRADIENT_DARK + ', 1) ' + progress + '%, rgba(' + CONSTANTS.UPLOAD_GRADIENT_LIGHT + ', 1) ' + 0 + '%)'});
-        },
-        decrypt: function(attachment, keys) {
-            var deferred = $q.defer();
-            var promise = this.get(attachment.ID, attachment.Name); // get enc attachment
-
-            if (angular.isUndefined(attachment.KeyPackets)) {
-                promise.then(function(result) {
-                    deferred.resolve(result);
-                });
-            } else {
-                var attachmentStored = _.findWhere(this.store, {ID: attachment.ID});
-
-                if(angular.isDefined(attachmentStored)) {
-                    deferred.resolve(attachmentStored);
-                } else {
-                    // decode key packets
-                    var keyPackets = pmcw.binaryStringToArray(pmcw.decode_base64(attachment.KeyPackets));
-                    // decrypt session key from keypackets
-                    var key = pmcw.decryptSessionKey(keyPackets, keys);
-
-                    // when we have the session key and attachment:
-                    $q.all({
-                        "attObject": att,
-                        "key": key
-                     }).then(function(obj) {
-                        // create new Uint8Array to store decryted attachment
-                        var at = new Uint8Array(obj.attObject.data);
-
-                        // grab the key
-                        var key = obj.key.key;
-
-                        // grab the algo
-                        var algo = obj.key.algo;
-
-                        // decrypt the att
-                        pmcw.decryptMessage(at, key, true, algo).then(function(decryptedAtt) {
-                            deferred.resolve(decryptedAtt);
-                        }, function(err) {
-                            deferred.reject(error);
-                        });
-                    }, function(error) {
-                        deferred.reject(error);
-                    });
-                }
-            }
-
-            return deferred.promise;
-        },
-        download: function(attachment) {
-            try {
-                var blob = new Blob([attachment.data], {type: attachment.MIMEType});
-                var link = $(attachment.el);
-
-                if($rootScope.isFileSaverSupported) {
-                    saveAs(blob, attachment.Name);
-                } else {
-                    // Bad blob support, make a data URI, don't click it
-                    var reader = new FileReader();
-
-                    reader.onloadend = function () {
-                        link.attr('href',reader.result);
-                    };
-
-                    reader.readAsDataURL(blob);
-                }
-            } catch (error) {
-                console.log(error);
-            }
         }
     };
 });

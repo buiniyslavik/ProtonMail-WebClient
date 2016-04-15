@@ -16,6 +16,7 @@ angular.module("proton.event", ["proton.constants"])
 		CONSTANTS,
 		Contact,
 		Events,
+		Label,
 		notify,
 		pmcw
 	) {
@@ -84,7 +85,7 @@ angular.module("proton.event", ["proton.constants"])
 				}
 			},
 			manageUser: function(user) {
-				if(angular.isDefined(user)) {
+				if (angular.isDefined(user)) {
 					var mailboxPassword = authentication.getPassword();
 					var promises = [];
 					var dirtyAddresses = [];
@@ -294,6 +295,12 @@ angular.module("proton.event", ["proton.constants"])
 					cacheCounters.reset();
 					cache.callRefresh();
 					cacheCounters.query();
+					authentication.fetchUserInfo()
+					.then(function() {
+						$rootScope.$broadcast('updateUser');
+						$rootScope.$broadcast('updateContacts');
+						$rootScope.$broadcast('updateLabels');
+					});
 				} else if (data.Reload === 1) {
 					$window.location.reload();
 				} else if (this.isDifferent(data.EventID)) {
@@ -311,7 +318,6 @@ angular.module("proton.event", ["proton.constants"])
 				}
 
 				this.manageNotices(data.Notices);
-				cache.expiration();
 			},
 			interval: function() {
 				eventModel.get().then(function (result) {

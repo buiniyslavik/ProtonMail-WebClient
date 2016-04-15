@@ -31,7 +31,7 @@ form.searchForm {
 	}
 	fieldset {
 		position: relative;
-		background: rgba(255,255,255,.25);;
+		background: lighten($alt, 10%);
 		z-index: 5;
 		display: block;
 		line-height: 35px;
@@ -87,12 +87,12 @@ form.searchForm {
 			border: none;
 			padding: 0;
 			-webkit-appearance: none;
-			   -moz-appearance: none;
-			        appearance: none;
+			-moz-appearance: none;
+	        appearance: none;
 			position: relative;
 			border-radius: 0;
 			padding: 0 0 0 10px;
-			background: transparent;
+			background: lighten($alt, 10%);
 			color: #fff;
 			position: absolute;
 			left: 35px;
@@ -102,6 +102,7 @@ form.searchForm {
 			bottom: 0;
 			width: 80%;
 			font-size: 14px;
+			border-radius: 35px;
 			&.searchInput {
 				left: 0;
 				width: 85%;
@@ -161,9 +162,10 @@ body.mobileMode {
 			display: none;
 		}
 		#advancedSearchDropdown {
-			top: 35px;
+			top: 70px;
 			box-shadow: none;
 			border-radius: none;
+			padding-top: 0;
 			.wrap {
 				border-radius: 0;
 				border-bottom: 1px solid $border;

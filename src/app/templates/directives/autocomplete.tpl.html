@@ -3,7 +3,7 @@
         <span ng-repeat="email in emails" class="email">
             <span class="label-email" title="{{ email | contact }}">
                 <span ng-bind="email | contact: 'Name'"></span>
-                <a ng-click="onRemove($index)" title="{{ 'REMOVE' | translate }}">
+                <a ng-click="onRemove($index)">
                     <i class="fa fa-times"></i>
                 </a>
             </span>
@@ -14,7 +14,7 @@
     </label>
     <ul class="autocomplete-email" ng-show="params.contactsFiltered.length > 0">
         <li ng-repeat="email in params.contactsFiltered">
-            <a href="#" ng-mousedown="onAddEmail(email)" ng-class="{'selected': $index === params.selected}" ng-bind="email | contact"></a>
+            <a href="#" ng-click="onAddEmail(email)" ng-class="{'selected': $index === params.selected}" ng-bind="email | contact"></a>
         </li>
     </ul>
 </div>

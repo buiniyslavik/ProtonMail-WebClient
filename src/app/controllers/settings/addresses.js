@@ -4,7 +4,7 @@ angular.module('proton.controllers.Settings')
     $q,
     $rootScope,
     $scope,
-    $translate,
+    gettextCatalog,
     Address,
     aliasModal,
     authentication,
@@ -17,7 +17,6 @@ angular.module('proton.controllers.Settings')
     Member,
     networkActivityTracker,
     notify,
-    organization,
     Setting
 ) {
     $scope.activeAddresses = _.where(authentication.user.Addresses, {Status: 1, Receive: 1});
@@ -51,21 +50,12 @@ angular.module('proton.controllers.Settings')
         }
     };
 
-    // Set organization
-    if (organization.data.Organization) {
-        $scope.organization = organization.data.Organization;
-    }
-
     // Listeners
     $scope.$on('updateUser', function(event) {
         if ($scope.itemMoved === false) {
             $scope.activeAddresses = _.where(authentication.user.Addresses, {Status: 1, Receive: 1});
             $scope.disabledAddresses = _.difference(authentication.user.Addresses, $scope.activeAddresses);
         }
-    });
-
-    $scope.$on('organizationChange', function(event, organization) {
-        $scope.organization = organization;
     });
 
     /**
@@ -87,14 +77,14 @@ angular.module('proton.controllers.Settings')
         networkActivityTracker.track(Address.enable(address.ID).then(function(result) {
             if(angular.isDefined(result.data) && result.data.Code === 1000) {
                 eventManager.call();
-                notify({message: $translate.instant('ADDRESS_ENABLED'), classes: 'notification-success'});
+                notify({message: gettextCatalog.getString('Address enabled', null), classes: 'notification-success'});
             } else if(angular.isDefined(result.data) && result.data.Error) {
                 notify({message: result.data.Error, classes: 'notification-danger'});
             } else {
-                notify({message: $translate.instant('ERROR_DURING_ENABLE'), classes: 'notification-danger'});
+                notify({message: gettextCatalog.getString('Error during enable request', null, 'Error'), classes: 'notification-danger'});
             }
         }, function(error) {
-            notify({message: $translate.instant('ERROR_DURING_ENABLE'), classes: 'notification-danger'});
+            notify({message: gettextCatalog.getString('Error during enable request', null, 'Error'), classes: 'notification-danger'});
         }));
     };
 
@@ -104,21 +94,21 @@ angular.module('proton.controllers.Settings')
     $scope.disable = function(address) {
         confirmModal.activate({
             params: {
-                title: $translate.instant('DISABLE_ADDRESS'),
-                message: $translate.instant('Are you sure you want to disable this address?'),
+                title: gettextCatalog.getString('Disable address', null),
+                message: gettextCatalog.getString('Are you sure you want to disable this address?', null),
                 confirm: function() {
                     networkActivityTracker.track(Address.disable(address.ID).then(function(result) {
                         if(angular.isDefined(result.data) && result.data.Code === 1000) {
                             eventManager.call();
-                            notify({message: $translate.instant('ADDRESS_DISABLED'), classes: 'notification-success'});
+                            notify({message: gettextCatalog.getString('Address disabled', null), classes: 'notification-success'});
                             confirmModal.deactivate();
                         } else if(angular.isDefined(result.data) && result.data.Error) {
                             notify({message: result.data.Error, classes: 'notification-danger'});
                         } else {
-                            notify({message: $translate.instant('ERROR_DURING_DISABLE'), classes: 'notification-danger'});
+                            notify({message: gettextCatalog.getString('Error during disable request', null, 'Error'), classes: 'notification-danger'});
                         }
                     }, function(error) {
-                        notify({message: $translate.instant('ERROR_DURING_DISABLE'), classes: 'notification-danger'});
+                        notify({message: gettextCatalog.getString('Error during disable request', null, 'Error'), classes: 'notification-danger'});
                     }));
                 },
                 cancel: function() {
@@ -134,7 +124,7 @@ angular.module('proton.controllers.Settings')
     $scope.identity = function(address) {
         identityModal.activate({
             params: {
-                title: $translate.instant('EDIT_ADDRESS'),
+                title: gettextCatalog.getString('Edit address', null, 'Title'),
                 address: address,
                 confirm: function(address) {
                     if (address.custom === false) {
@@ -147,15 +137,15 @@ angular.module('proton.controllers.Settings')
                         .then(function(result) {
                             if(angular.isDefined(result.data) && result.data.Code === 1000) {
                                 eventManager.call();
-                                notify({message: $translate.instant('ADDRESS_UPDATED'), classes: 'notification-success'});
+                                notify({message: gettextCatalog.getString('Address updated', null), classes: 'notification-success'});
                                 identityModal.deactivate();
                             } else if(angular.isDefined(result.data) && result.data.Error) {
                                 notify({message: result.data.Error, classes: 'notification-danger'});
                             } else {
-                                notify({message: $translate.instant('ERROR_DURING_UPDATING'), classes: 'notification-danger'});
+                                notify({message: gettextCatalog.getString('Error during updating', null, 'Error'), classes: 'notification-danger'});
                             }
                         }, function(error) {
-                            notify({message: $translate.instant('ERROR_DURING_UPDATING'), classes: 'notification-danger'});
+                            notify({message: gettextCatalog.getString('Error during updating', null, 'Error'), classes: 'notification-danger'});
                         })
                     );
                 },
@@ -175,21 +165,21 @@ angular.module('proton.controllers.Settings')
 
         confirmModal.activate({
             params: {
-                title: $translate.instant('DELETE_ADDRESS'),
-                message: $translate.instant('Are you sure you want to delete this address?'),
+                title: gettextCatalog.getString('Delete address', null, 'Title'),
+                message: gettextCatalog.getString('Are you sure you want to delete this address?', null, 'Info'),
                 confirm: function() {
                     networkActivityTracker.track(Address.delete(address.ID).then(function(result) {
                         if(angular.isDefined(result.data) && result.data.Code === 1000) {
-                            notify({message: $translate.instant('ADDRESS_DELETED'), classes: 'notification-success'});
+                            notify({message: gettextCatalog.getString('Address deleted', null), classes: 'notification-success'});
                             $scope.disabledAddresses.splice(index, 1); // Remove address in UI
                             confirmModal.deactivate();
                         } else if(angular.isDefined(result.data) && result.data.Error) {
                             notify({message: result.data.Error, classes: 'notification-danger'});
                         } else {
-                            notify({message: $translate.instant('ERROR_DURING_DELETION'), classes: 'notification-danger'});
+                            notify({message: gettextCatalog.getString('Error during deletion', null, 'Error'), classes: 'notification-danger'});
                         }
                     }, function(error) {
-                        notify({message: $translate.instant('ERROR_DURING_DELETION'), classes: 'notification-danger'});
+                        notify({message: gettextCatalog.getString('Error during deletion', null, 'Error'), classes: 'notification-danger'});
                     }));
                 },
                 cancel: function() {
@@ -206,7 +196,7 @@ angular.module('proton.controllers.Settings')
     $scope.generate = function(address) {
         generateModal.activate({
             params: {
-                title: $translate.instant('GENERATE_KEY_PAIR'),
+                title: gettextCatalog.getString('Generate key pair', null),
                 message: '', // TODO need text
                 addresses: [address],
                 cancel: function() {
@@ -243,19 +233,15 @@ angular.module('proton.controllers.Settings')
 
     $scope.saveOrder = function(order) {
         networkActivityTracker.track(
-            Setting.addressOrder({
-                'Order': order
-            }).$promise.then(function(response) {
-                if (response.Code === 1000) {
-                    notify({message: $translate.instant('ADDRESS_ORDER_SAVED'), classes: 'notification-success'});
-                } else if (response.Error) {
-                    notify({message: response.Error, classes: 'notification-danger'});
+            Setting.addressOrder({Order: order})
+            .then(function(result) {
+                if (result.data && result.data.Code === 1000) {
+                    notify({message: gettextCatalog.getString('Address order saved', null), classes: 'notification-success'});
+                } else if (result.data && result.data.Error) {
+                    notify({message: result.data.Error, classes: 'notification-danger'});
                 } else {
-                    notify({message: 'Error during the order request', classes : 'notification-danger'});
+                    notify({message: gettextCatalog.getString('Unable to save your changes, please try again.', null, 'Error'), classes : 'notification-danger'});
                 }
-            }, function(error) {
-                notify({message: 'Error during the order request', classes : 'notification-danger'});
-                $log.error(error);
             })
         );
     };

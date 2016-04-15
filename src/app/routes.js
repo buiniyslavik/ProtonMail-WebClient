@@ -7,6 +7,7 @@ angular.module('proton.routes', [
 .config(function($stateProvider, $urlRouterProvider, $locationProvider, CONSTANTS) {
     var conversationParameters = function() {
       var parameters = [
+        'email',
         'address',
         'page',
         'filter',
@@ -15,7 +16,7 @@ angular.module('proton.routes', [
         'from',
         'to',
         'subject',
-        'words',
+        'keyword',
         'begin',
         'end',
         'attachments',
@@ -145,9 +146,10 @@ angular.module('proton.routes', [
                 var deferred = $q.defer();
 
                 if (!$rootScope.preInvited) {
-                    User.direct().$promise.then(function(data) {
-                        if (data && data.Code === 1000) {
-                            if (data.Direct === 1) {
+                    User.direct()
+                    .then(function(result) {
+                        if (result.data && result.data.Code === 1000) {
+                            if (result.data.Direct === 1) {
                                 $state.go('step1');
                                 deferred.resolve();
                             } else {
@@ -195,14 +197,15 @@ angular.module('proton.routes', [
 
                 return deferred.promise;
             },
-            direct: function($http, $q, $state, $rootScope, url, User) {
+            direct: function($q, $state, $rootScope, User) {
                 var deferred = $q.defer();
 
                 if (!$rootScope.preInvited) {
-                    User.direct().$promise.then(function(data) {
-                        if (data && data.Code === 1000) {
-                            if (data.Direct === 1) {
-                                deferred.resolve();
+                    User.direct()
+                    .then(function(result) {
+                        if (result.data && result.data.Code === 1000) {
+                            if (result.data.Direct === 1) {
+                                deferred.resolve(result.data);
                             } else {
                                 window.location.href = 'https://protonmail.com/invite';
                                 deferred.reject();
@@ -454,9 +457,9 @@ angular.module('proton.routes', [
                 templateUrl: 'templates/views/outside.reply.tpl.html'
             }
         },
-        onEnter: function($translate) {
+        onEnter: function(gettextCatalog) {
             window.onbeforeunload = function() {
-                return $translate.instant('MESSAGE_LEAVE_WARNING');
+                return gettextCatalog.getString('By leaving now, you will lose what you have written in this email. You can save a draft if you want to come back to it later on.', null);
             };
         },
         onExit: function() {
@@ -480,8 +483,8 @@ angular.module('proton.routes', [
         },
         resolve: {
             // Contains also labels and contacts
-            user: function(authentication, $log, $http, pmcw) {
-                if(angular.isObject(authentication.user)) {
+            user: function(authentication, $http, pmcw) {
+                if (angular.isObject(authentication.user)) {
                     return authentication.user;
                 } else {
                     if(angular.isDefined(window.sessionStorage.getItem(CONSTANTS.OAUTH_KEY+':SessionToken'))) {
@@ -490,6 +493,24 @@ angular.module('proton.routes', [
 
                     return authentication.fetchUserInfo(); // TODO need to rework this just for the locked page
                 }
+            },
+            organization: function($q, user, Organization) {
+                var deferred = $q.defer();
+
+                if (user.Role > 0) {
+                    Organization.get()
+                    .then(function(result) {
+                        if (result.data && result.data.Code === 1000) {
+                            deferred.resolve(result.data.Organization);
+                        }
+                    });
+                } else {
+                    deferred.resolve({
+                        PlanName: 'free'
+                    });
+                }
+
+                return deferred.promise;
             }
         },
         onEnter: function($rootScope, authentication, $timeout, CONSTANTS) {
@@ -520,6 +541,21 @@ angular.module('proton.routes', [
 
     .state('secured.contacts', {
         url: '/contacts',
+        resolve: {
+            delinquent: function($q, $state, gettextCatalog, user, notify, authentication) {
+                var deferred = $q.defer();
+
+                if (authentication.user.Delinquent < 3) {
+                    deferred.resolve();
+                } else {
+                    notify({message: gettextCatalog.getString('Your account currently has an overdue invoice. Please pay all unpaid invoices.', null, 'Info'), classes: 'notification-danger'});
+                    $state.go('secured.payments');
+                    deferred.reject();
+                }
+
+                return deferred.promise;
+            }
+        },
         views: {
             'content@secured': {
                 templateUrl: 'templates/views/contacts.tpl.html',
@@ -581,11 +617,6 @@ angular.module('proton.routes', [
 
     .state('secured.addresses', {
         url: '/addresses',
-        resolve: {
-            organization: function(user, Organization, networkActivityTracker) {
-                return networkActivityTracker.track(Organization.get());
-            }
-        },
         views: {
             'content@secured': {
                 templateUrl: 'templates/views/addresses.tpl.html',
@@ -644,47 +675,13 @@ angular.module('proton.routes', [
         views: {
             'main@': {
                 templateUrl: 'templates/views/invoice.print.tpl.html',
-                controller: function($scope, invoice, $timeout, user, Organization) {
+                controller: function($scope, $timeout, invoice) {
                     $scope.invoice = invoice;
-                    $scope.user = user;
 
-                    Organization.get(invoice.OrganizationID).then(
-                        function(result) {
-                            if (result.data && result.data.Code===1000) {
-                                $scope.organization = result.data.Organization;
-                                $timeout( function() {
-                                    window.print();
-                                }, 200);
-                            }
-                        },
-                        function(result) {
-
-                        }
-                    );
+                    $timeout( function() {
+                        window.print();
+                    }, 200);
                 },
-            }
-        }
-    })
-
-    .state('secured.invoices', {
-        url: '/invoices',
-        resolve: {
-            access: function(user, $q) {
-                var deferred = $q.defer();
-
-                if(user.Role === 2) {
-                    deferred.resolve();
-                } else {
-                    deferred.reject();
-                }
-
-                return deferred.promise;
-            }
-        },
-        views: {
-            'content@secured': {
-                templateUrl: 'templates/views/invoices.tpl.html',
-                controller: 'InvoicesController'
             }
         }
     })
@@ -729,9 +726,6 @@ angular.module('proton.routes', [
 
                 return deferred.promise;
             },
-            organization: function(user, Organization, networkActivityTracker) {
-                return networkActivityTracker.track(Organization.get());
-            },
             // Return yearly plans
             yearly: function(user, Payment, networkActivityTracker) {
                 return networkActivityTracker.track(Payment.plans(user.Currency, 12));
@@ -769,13 +763,6 @@ angular.module('proton.routes', [
 
                 return deferred.promise;
             },
-            organization: function(user, Organization, networkActivityTracker) {
-                if(user.Role === 2) {
-                    return networkActivityTracker.track(Organization.get());
-                } else {
-                    return true;
-                }
-            },
             members: function(Member, networkActivityTracker) {
                 return networkActivityTracker.track(Member.query());
             },
@@ -804,13 +791,6 @@ angular.module('proton.routes', [
                 }
 
                 return deferred.promise;
-            },
-            organization: function(user, Organization, networkActivityTracker) {
-                if(user.Role === 2) {
-                    return networkActivityTracker.track(Organization.get());
-                } else {
-                    return true;
-                }
             },
             members: function(Member, networkActivityTracker) {
                 return networkActivityTracker.track(Member.query());
@@ -851,6 +831,21 @@ angular.module('proton.routes', [
         $stateProvider.state(parentState, {
             url: '/' + box + '?' + conversationParameters(),
             views: list,
+            resolve: {
+                delinquent: function($q, $state, gettextCatalog, user, notify, authentication) {
+                    var deferred = $q.defer();
+
+                    if (authentication.user.Delinquent < 3) {
+                        deferred.resolve();
+                    } else {
+                        notify({message: gettextCatalog.getString('Your account currently has an overdue invoice. Please pay all unpaid invoices.', null, 'Info'), classes: 'notification-danger'});
+                        $state.go('secured.payments');
+                        deferred.reject();
+                    }
+
+                    return deferred.promise;
+                }
+            },
             onExit: function($rootScope) {
                 $rootScope.showWelcome = false;
             }
@@ -877,18 +872,4 @@ angular.module('proton.routes', [
     });
 
     $locationProvider.html5Mode(true);
-})
-
-.run(function($rootScope, $state, $stateParams) {
-    $rootScope.go = _.bind($state.go, $state);
-
-    $rootScope.idDefined = function() {
-        var id = $stateParams.id;
-
-        return angular.isDefined(id) && id.length > 0;
-    };
-
-    $rootScope.deselectAll = function() {
-        $rootScope.$broadcast('unselectAllElements');
-    };
 });

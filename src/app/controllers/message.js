@@ -13,7 +13,7 @@ angular.module("proton.controllers.Message", ["proton.constants"])
     $stateParams,
     $templateCache,
     $timeout,
-    $translate,
+    gettextCatalog,
     $window,
     action,
     alertModal,
@@ -34,8 +34,8 @@ angular.module("proton.controllers.Message", ["proton.constants"])
     $scope.tools = tools;
     $scope.isPlain = false;
     $scope.labels = authentication.user.Labels;
-    $scope.CONSTANTS = CONSTANTS;
     $scope.attachmentsStorage = [];
+    $scope.elementPerPage = CONSTANTS.ELEMENTS_PER_PAGE;
 
     $scope.$on('refreshMessage', function(event) {
         var message = cache.getMessageCached($scope.message.ID);
@@ -204,11 +204,11 @@ angular.module("proton.controllers.Message", ["proton.constants"])
                 copy.Body = content;
                 $rootScope.$broadcast('loadMessage', copy);
             }, function(error) {
-                notify({message: 'Error during the decryption of the message', classes: 'notification-danger'});
+                notify({message: gettextCatalog.getString('Error during the decryption of the message', null, 'Error'), classes: 'notification-danger'});
                 $log.error(error); // TODO send to back-end
             });
         }, function(error) {
-            notify({message: 'Error during the getting message', classes: 'notification-danger'});
+            notify({message: gettextCatalog.getString('Error during the getting message', null, 'Error'), classes: 'notification-danger'});
             $log.error(error); // TODO send to back-end
         });
     };
@@ -277,9 +277,9 @@ angular.module("proton.controllers.Message", ["proton.constants"])
     $scope.openSafariWarning = function() {
         alertModal.activate({
             params: {
-                title: $translate.instant('DOWNLOAD_CONTACTS'),
+                title: gettextCatalog.getString('Download', null, 'Title'),
                 alert: 'alert-warning',
-                message: 'Safari does not fully support downloading contacts.<br /><br />Please login with a different browser to download contacts.', // TODO translate
+                message: gettextCatalog.getString('Safari does not fully support downloading contacts.<br /><br />Please login with a different browser to download contacts.', null, 'Error'),
                 ok: function() {
                     alertModal.deactivate();
                 }
@@ -672,7 +672,7 @@ angular.module("proton.controllers.Message", ["proton.constants"])
     var buildMessage = function(action) {
         var base = new Message();
         var br = '<br />';
-        var contentSignature;
+        var contentSignature = '';
         var signature;
         var blockquoteStart = '<blockquote class="protonmail_quote" type="cite">';
         var originalMessage = '-------- Original Message --------<br />';
@@ -682,8 +682,8 @@ angular.module("proton.controllers.Message", ["proton.constants"])
         var to = 'To: ' + tools.contactsToString($scope.message.ToList) + br;
         var cc = ($scope.message.CCList.length > 0)?('CC: ' + tools.contactsToString($scope.message.CCList) + br):'';
         var blockquoteEnd = '</blockquote>';
-        var re_prefix = $translate.instant('RE:');
-        var fw_prefix = $translate.instant('FW:');
+        var re_prefix = gettextCatalog.getString('Re:', null);
+        var fw_prefix = gettextCatalog.getString('Fw:', null);
         var re_length = re_prefix.length;
         var fw_length = fw_prefix.length;
 
@@ -724,23 +724,29 @@ angular.module("proton.controllers.Message", ["proton.constants"])
             var address = _.findWhere(authentication.user.Addresses, {ID: $scope.message.AddressID});
             var found = _.findWhere(recipients, {Address: address.Email});
 
-            _.each(_.sortBy(authentication.user.Addresses, 'Send'), function(address) {
-                if (angular.isUndefined(found)) {
-                    found = _.findWhere(recipients, {Address: address.Email});
-                }
-            });
-
-            if (angular.isUndefined(found)) {
+            if ($scope.message.Type === 2 || $scope.message.Type === 3) {
                 found = address;
+            } else {
+                _.each(_.sortBy(authentication.user.Addresses, 'Send'), function(address) {
+                    if (angular.isUndefined(found)) {
+                        found = _.findWhere(recipients, {Address: address.Email});
+                    }
+                });
+
+                if (angular.isUndefined(found)) {
+                    found = address;
+                }
             }
 
             base.From = found;
         }
 
-        contentSignature = DOMPurify.sanitize('<div class="protonmail_signature_block">' + tools.replaceLineBreaks(base.From.Signature) + '</div>', {
-            ADD_ATTR: ['target'],
-            FORBID_TAGS: ['style', 'input', 'form']
-        });
+        if (base.From.Signature) {
+            contentSignature = DOMPurify.sanitize('<div class="protonmail_signature_block">' + tools.replaceLineBreaks(base.From.Signature) + '</div>', {
+                ADD_ATTR: ['target'],
+                FORBID_TAGS: ['style', 'input', 'form']
+            });
+        }
 
         if ($(contentSignature).text().length === 0 && $(contentSignature).find('img').length === 0) {
             signature = br + br;

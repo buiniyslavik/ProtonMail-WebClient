@@ -25,6 +25,7 @@
         <span
         class="senders"
         ng-click="click(conversation)">
+            &nbsp;
             <span
             ng-hide="('secured.sent.**' | includedByState) || ('secured.drafts.**' | includedByState)"
             ng-repeat="contact in senders(conversation)"
@@ -72,7 +73,8 @@
                 ng-style="getStyleLabel(labelID)"
                 ng-show="getLabel(labelID).Name"
                 ng-click="$event.stopPropagation();goToLabel(labelID)">{{ getLabel(labelID).Name }}
-                </label><label class="pm_label closed more" ng-show="(conversation.LabelIDs | labels).length > 4" pt-tooltip="+{{ (conversation.LabelIDs | labels).length - 4 }} {{ 'MORE_LABELS' | translate}}">&hellip;</label>
+            </label>
+            <label class="pm_label closed more" ng-show="(conversation.LabelIDs | labels).length > 4" pt-tooltip-translate="+{{ (conversation.LabelIDs | labels).length - 4 }} More labels">&hellip;</label>
             </span>
         </div>
         <span class="size">{{ size(conversation)| bytes }}</span>

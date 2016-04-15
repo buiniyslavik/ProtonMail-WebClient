@@ -7,7 +7,7 @@ angular.module("proton.controllers.Signup", ["proton.tools"])
     $rootScope,
     $state,
     $stateParams,
-    $translate,
+    gettextCatalog,
     $location,
     $q,
     $timeout,
@@ -20,11 +20,10 @@ angular.module("proton.controllers.Signup", ["proton.tools"])
     User,
     Reset,
     pmcw,
-    notify
+    notify,
+    direct
 ) {
     $scope.initialization = function() {
-
-        $log.debug('Signup:initialization');
         // Variables
         $scope.tools    = tools;
         $scope.compatibility = tools.isCompatible();
@@ -37,11 +36,29 @@ angular.module("proton.controllers.Signup", ["proton.tools"])
         $scope.getUserInfo = false;
         $scope.finishCreation = false;
 
-        $scope.signup = {};
+        $scope.signup = {
+            verificationSent: false,		
+            smsVerificationSent: false
+        };
 
-        $scope.signup.verificationSent = false;
         $scope.generating = false;
         $scope.domains = [];
+
+        // direct comes from the resolve in route, sometimes
+        if (direct) {
+            // determine what activation methods to show
+            if (direct.VerifyMethods) {
+                if (direct.VerifyMethods.indexOf('email') !== -1) {
+                    $scope.showEmail = true;
+                }
+                if (direct.VerifyMethods.indexOf('recaptcha') !== -1) {
+                    $scope.showCaptcha = true;
+                }
+                if (direct.VerifyMethods.indexOf('sms') !== -1) {
+                    $scope.showSms = true;
+                }
+            }
+        }
 
         // Populate the domains <select>
         _.each(domains, function(domain) {
@@ -50,7 +67,7 @@ angular.module("proton.controllers.Signup", ["proton.tools"])
 
         $scope.maxPW = CONSTANTS.LOGIN_PW_MAX_LEN;
 
-        $scope.account = [];
+        $scope.account = {};
 
         // Select the first domain
         $scope.account.domain = $scope.domains[0];
@@ -60,6 +77,9 @@ angular.module("proton.controllers.Signup", ["proton.tools"])
 
         // Initialize captcha token
         $scope.account.captcha_token = false;
+
+        // Initialize sms verification code
+        $scope.account.smsCodeVerification = '';
 
         // Prepoppulate the username if from an invite link and mark as read only
         if (angular.isDefined($rootScope.username)) {
@@ -115,10 +135,16 @@ angular.module("proton.controllers.Signup", ["proton.tools"])
 
         // Change window.location.origin to wherever this is hosted ( 'https://secure.protonmail.com:443' )
         window.captchaSendMessage = function() {
-            iframe = document.getElementById('pm_captcha');
+            var iframe = document.getElementById('pm_captcha');
             iframe.contentWindow.postMessage(message, 'https://secure.protonmail.com');
         };
 
+    };
+
+    $scope.setIframeSrc = function() {
+        var iframe = document.getElementById('pm_captcha');
+        iframe.onload = captchaSendMessage;
+        iframe.src = "https://secure.protonmail.com/recaptcha.html";
     };
 
     $scope.notificationEmailValidation = function() {
@@ -136,11 +162,29 @@ angular.module("proton.controllers.Signup", ["proton.tools"])
             Destination: {
                 Address: $scope.account.emailVerification
             }
-        }).$promise.then(function(response) {
-            if (response.Code === 1000) {
+        }).then(function(result) {
+            if (result.data && result.data.Code === 1000) {
                 $scope.signup.verificationSent = true;
-            } else if (response.Error) {
-                notify({message: response.Error, classes: 'notification-danger'});
+            } else if (result.data && result.data.Error) {
+                notify({message: result.data.Error, classes: 'notification-danger'});
+            }
+        });
+    };
+
+    $scope.sendSmsVerificationCode = function() {
+        $scope.smsSending = true;
+        User.code({
+            Username: $scope.account.Username,
+            Type: 'sms',
+            Destination: {
+                Phone: $scope.account.smsVerification
+            }
+        }).then(function(result) {
+            $scope.smsSending = false;
+            if (result.data && result.data.Code === 1000) {
+                $scope.signup.smsVerificationSent = true;
+            } else if (result.data && result.data.Error) {
+                notify({message: result.data.Error, classes: 'notification-danger'});
             }
         });
     };
@@ -167,12 +211,11 @@ angular.module("proton.controllers.Signup", ["proton.tools"])
         .then( $scope.finishRedirect )
         .catch( function(err) {
             var msg = err;
-            if (typeof msg !== "string") {
-                msg = err.toString();
+
+            if (typeof msg !== 'string') {
+                msg = gettextCatalog.getString('Something went wrong', null, 'Error');
             }
-            if (typeof msg !== "string") {
-                msg = "Something went wrong";
-            }
+
             notify({
                 classes: 'notification-danger',
                 message: msg
@@ -266,16 +309,16 @@ angular.module("proton.controllers.Signup", ["proton.tools"])
             $scope.checkingUsername = false;
             deferred.resolve(200);
         } else {
-            if ($scope.account.Username.length > 0) {
-                User.available({ username: $scope.account.Username }).$promise
-                .then(function(response) {
-                    if (response.Error) {
+            if ($scope.account.Username && $scope.account.Username.length > 0) {
+                User.available($scope.account.Username)
+                .then(function(result) {
+                    if (result.data && result.data.Error) {
                         $scope.badUsername = true;
                         $scope.checkingUsername = false;
                         $('#Username').focus();
-                        deferred.reject(response.Error);
-                    } else {
-                        if (response.Available === 0) {
+                        deferred.reject(result.data.Error);
+                    } else if (result.data && result.data.Code === 1000) {
+                        if (result.data.Available === 0) {
                             if ( manual === true ) {
                                 $scope.badUsername = true;
                                 $scope.checkingUsername = false;
@@ -296,6 +339,8 @@ angular.module("proton.controllers.Signup", ["proton.tools"])
                         }
                     }
                 });
+            } else {
+                $scope.checkingUsername = false;
             }
         }
 
@@ -316,60 +361,53 @@ angular.module("proton.controllers.Signup", ["proton.tools"])
     };
 
     $scope.doCreateUser = function() {
-
-        $log.debug('doCreateUser: $scope.account.codeVerification', $scope.account.codeVerification);
-
-        $log.debug('doCreateUser: inviteToken', $rootScope.inviteToken);
-        $log.debug('doCreateUser: captcha_token', $scope.account.captcha_token);
-
+        var deferred = $q.defer();
         var params = {
-            'Username': $scope.account.Username,
-            'Password': $scope.account.loginPassword,
-            'Domain': $scope.account.domain.value,
-            'Email': $scope.account.notificationEmail,
-            'News': !!($scope.account.optIn),
-            'PrivateKey': $scope.account.PrivateKey
+            Username: $scope.account.Username,
+            Password: $scope.account.loginPassword,
+            Domain: $scope.account.domain.value,
+            Email: $scope.account.notificationEmail,
+            News: !!($scope.account.optIn),
+            PrivateKey: $scope.account.PrivateKey
         };
 
         if (angular.isDefined($rootScope.inviteToken)) {
-            $log.debug($scope.inviteToken);
             params.Token = $rootScope.inviteToken;
             params.TokenType = 'invite';
-        } else if (angular.isDefined($scope.account.captcha_token) && $scope.account.captcha_token!==false) {
-            $log.debug($scope.account.captcha_token);
+        } else if (angular.isDefined($scope.account.captcha_token) && $scope.account.captcha_token !== false) {
             params.Token = $scope.account.captcha_token;
             params.TokenType = 'recaptcha';
-        }
-        else {
+        } else if ($scope.signup.smsVerificationSent !== false) {
+            params.Token = $scope.account.smsCodeVerification;
+            params.TokenType = 'sms';
+        } else if ($scope.signup.verificationSent !== false) {
             params.Token = $scope.account.codeVerification;
             params.TokenType = 'email';
         }
 
-        if ($rootScope.tempUser===undefined) {
+        if ($rootScope.tempUser === undefined) {
             $rootScope.tempUser = [];
         }
-
-        $log.debug(params);
 
         $rootScope.tempUser.username = $scope.account.Username;
         $rootScope.tempUser.password = $scope.account.loginPassword;
 
-        return User.create(params).$promise.then( function(response) {
-            $log.debug(response);
-            if (response.Code===1000) {
+        User.create(params).then(function(result) {
+            if (result.data && result.data.Code === 1000) {
                 $scope.createUser  = true;
+                deferred.resolve(result.data);
+            } else if (result.data && result.data.Error) {
+                deferred.reject(result.data.Error);
+            } else {
+                deferred.reject('Something went wrong');
             }
-            return response;
         });
+
+        return deferred.promise;
     };
 
     $scope.doLogUserIn = function(response) {
-        $log.debug('doLogUserIn', response);
         if (response.Code && response.Code===1000) {
-            $log.debug(
-                $rootScope.tempUser.username,
-                $rootScope.tempUser.password
-            );
             $scope.logUserIn   = true;
             return authentication.loginWithCredentials({
                 Username: $rootScope.tempUser.username,
@@ -412,10 +450,6 @@ angular.module("proton.controllers.Signup", ["proton.tools"])
                         $rootScope.isLocked = authentication.isLocked();
                         $rootScope.isSecure = authentication.isSecured();
                         window.sessionStorage.setItem(CONSTANTS.MAILBOX_PASSWORD_KEY, pmcw.encode_utf8_base64($scope.account.mailboxPassword));
-                        if (CONSTANTS.WIZARD_ENABLED === true) {
-                            $rootScope.welcome = true; // Display welcome modal
-                        }
-                        $state.go("secured.inbox");
                     }
                 );
             }
@@ -430,11 +464,17 @@ angular.module("proton.controllers.Signup", ["proton.tools"])
 
     $scope.finishRedirect = function() {
         $log.debug('finishRedirect');
-        var deferred = $q.defer();
         $scope.finishCreation = true;
-        window.sessionStorage.setItem(CONSTANTS.MAILBOX_PASSWORD_KEY, pmcw.encode_utf8_base64($scope.account.mailboxPassword));
-        deferred.resolve(200);
-        return deferred.promise;
+
+        if (CONSTANTS.WIZARD_ENABLED === true) {
+            $rootScope.welcome = true; // Display welcome modal
+        }
+
+        if (authentication.user.Delinquent < 3) {
+            $state.go('secured.inbox');
+        } else {
+            $state.go('secured.dashboard');
+        }
     };
 
     $scope.initialization();

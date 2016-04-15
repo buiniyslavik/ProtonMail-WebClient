@@ -1,4 +1,5 @@
 angular.module('proton', [
+    'gettext',
     'as.sortable',
     'cgNotify',
     'ngCookies',
@@ -7,7 +8,6 @@ angular.module('proton', [
     'ngResource',
     'ngRoute',
     'ngSanitize',
-    'pascalprecht.translate',
     'pikaday',
     // 'SmoothScrollbar',
     'ui.router',
@@ -17,7 +17,6 @@ angular.module('proton', [
 
     // templates
     'templates-app',
-    'templates-common',
 
     // App
     'proton.routes',
@@ -61,6 +60,8 @@ angular.module('proton', [
 
     // Directives
     'proton.autocomplete',
+    'proton.card',
+    'proton.drag',
     'proton.dropdown',
     'proton.dropzone',
     'proton.enter',
@@ -70,19 +71,18 @@ angular.module('proton', [
     'proton.labels',
     'proton.loaderTag',
     'proton.locationTag',
+    'proton.maxComposerHeight',
     'proton.move',
+    'proton.phone',
     'proton.responsiveComposer',
-    'proton.sample',
     'proton.sidebarHeight',
     'proton.squire',
     'proton.time',
     'proton.toggle',
     'proton.tooltip',
     'proton.transformation',
-    'proton.maxComposerHeight',
-    'proton.drag',
+    'proton.translate',
     'proton.wizard',
-    'proton.card',
 
     // Filters
     'proton.filters',
@@ -102,10 +102,7 @@ angular.module('proton', [
     'proton.controllers.Sidebar',
     'proton.controllers.Signup',
     'proton.controllers.Support',
-    'proton.controllers.Upgrade',
-
-    // Translations
-    'proton.translations'
+    'proton.controllers.Upgrade'
 ])
 
 /**
@@ -162,31 +159,39 @@ angular.module('proton', [
     urlProvider.setBaseUrl(CONFIG.apiUrl);
 })
 
+.run(function (CONFIG, gettextCatalog) {
+    var locale = window.navigator.userLanguage || window.navigator.language;
+
+    gettextCatalog.setCurrentLanguage('en_US');
+    gettextCatalog.debug = CONFIG.debug || false;
+    moment.locale(locale);
+})
+
 .run(function(CONSTANTS) {
     // This function clears junk from session storage. Should not be needed forever
     try {
-        var locale = window.navigator.userLanguage || window.navigator.language;
         var whitelist = [
             CONSTANTS.EVENT_ID,
             CONSTANTS.MAILBOX_PASSWORD_KEY,
-            CONSTANTS.OAUTH_KEY+":SessionToken",
-            CONSTANTS.OAUTH_KEY + ":Uid",
-            CONSTANTS.OAUTH_KEY + ":AccessToken",
-            CONSTANTS.OAUTH_KEY + ":RefreshToken",
-            "proton:decrypted_token",
-            "proton:encrypted_password"
+            CONSTANTS.OAUTH_KEY + ':SessionToken',
+            CONSTANTS.OAUTH_KEY + ':Uid',
+            CONSTANTS.OAUTH_KEY + ':AccessToken',
+            CONSTANTS.OAUTH_KEY + ':RefreshToken',
+            'proton:decrypted_token',
+            'proton:encrypted_password'
         ];
 
         var data = {};
-        for( var i=0; i<whitelist.length; i++) {
+
+        for(var i = 0; i < whitelist.length; i++) {
             var item = window.sessionStorage.getItem(whitelist[i]);
+
             if( angular.isString(item) ) {
                 data[whitelist[i]] = item;
             }
         }
 
         window.sessionStorage.clear();
-        moment.locale(locale);
 
         for (var key in data) {
             window.sessionStorage.setItem(key, data[key]);
@@ -400,14 +405,15 @@ angular.module('proton', [
                     params: {
                         submit: function(loginPassword) {
                             // Send request to unlock the current session for administrator privileges
-                            User.unlock({Password: loginPassword}).$promise.then(function(data) {
-                                if (data.Code === 1000) {
+                            User.unlock({Password: loginPassword})
+                            .then(function(result) {
+                                if (result.data && result.data.Code === 1000) {
                                     // Close the modal
                                     loginPasswordModal.deactivate();
                                     // Resend request now
                                     deferred.resolve($http(rejection.config));
-                                } else if (data.Error) {
-                                    notify({message: data.Error, classes: 'notification-danger'});
+                                } else if (result.data && result.data.Error) {
+                                    notify({message: result.data.Error, classes: 'notification-danger'});
                                     deferred.reject();
                                 }
                             });

@@ -46,6 +46,9 @@
     .pm_labels label.closed:hover {
         line-height: 8px;
     }
+    .summary .pm_tag {
+        line-height: 18px;
+    }
 }
 
 // All Firefox
@@ -75,11 +78,13 @@
         height: 18px;
         line-height: 8px;
     }
-    #conversation-view .message > div.summary {
+    #conversation-view .message > div.summary,
+    #conversation-view .message > div.summary .time .fa-paperclip {
         line-height: 34px;
+        height: 34px;
     }
     .pm_table th .pm_button, .pm_table td .pm_button {
-        line-height: 30px;
+        line-height: 36px;
     }
 }
 
@@ -99,9 +104,8 @@
         .pm_table th,
         .pm_table td {
             .pm_button.round {
-                line-height: 34px;
+                line-height: 32px;
                 position: relative;
-                top: 8px;
             }
         }
     }
@@ -143,6 +147,15 @@ input:-moz-ui-invalid {
 
 
 .ua-safari {
+
+    input[type="checkbox"] {
+        -webkit-transform: scale(2);
+        -moz-transform: scale(2);
+        -ms-transform: scale(2);
+        -o-transform: scale(2);
+        transform: scale(2);
+    }
+    
     .conversation .pm_labels label {
         &:first-child,
         &:hover {

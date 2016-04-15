@@ -8,7 +8,7 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
     $state,
     $stateParams,
     $timeout,
-    $translate,
+    gettextCatalog,
     $filter,
     $window,
     $cookies,
@@ -17,8 +17,8 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
     Conversation,
     Message,
     eventManager,
-    expiration,
     Label,
+    regexEmail,
     authentication,
     cache,
     confirmModal,
@@ -42,7 +42,7 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
         $scope.labels = authentication.user.Labels;
         $scope.messageButtons = authentication.user.MessageButtons;
         $scope.Math = window.Math;
-        $scope.CONSTANTS = CONSTANTS;
+        $scope.elementPerPage = CONSTANTS.ELEMENTS_PER_PAGE;
         $scope.selectedFilter = $stateParams.filter;
         $scope.selectedOrder = $stateParams.sort || "-date";
         $scope.page = parseInt($stateParams.page || 1);
@@ -106,8 +106,6 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
             $rootScope.numberElementSelected = $scope.elementsSelected().length;
             $rootScope.numberElementChecked = $scope.elementsChecked().length;
             $rootScope.numberElementUnread = cacheCounters.unreadConversation(tools.currentLocation());
-            // Manage expiration time
-            expiration.check(newValue);
         }, true);
     };
 
@@ -146,7 +144,7 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
      * @param {Boolean}
      */
     $scope.placeholder = function() {
-        return $rootScope.layoutMode === 'columns' && ($rootScope.idDefined() === false || ($rootScope.idDefined() === true && $rootScope.numberElementChecked > 0));
+        return $rootScope.layoutMode === 'columns' && ($scope.idDefined() === false || ($scope.idDefined() === true && $rootScope.numberElementChecked > 0));
     };
 
     $scope.startWatchingEvent = function() {
@@ -182,9 +180,34 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
             $scope.goToPage();
         });
 
-        if($rootScope.scrollPosition) {
+        if ($rootScope.scrollPosition) {
             $('#content').scrollTop($rootScope.scrollPosition);
             $rootScope.scrollPosition = null;
+        }
+
+        if ($stateParams.email) {
+            var emails = $stateParams.email.match(regexEmail);
+
+            if (emails) {
+                var message = new Message();
+                var ToList = [];
+
+                ToList.push({
+                    Address: emails[0],
+                    Name: emails[0]
+                });
+
+                _.defaults(message, {
+                    ToList: ToList,
+                    CCList: [],
+                    BCCList: [],
+                    Subject: '',
+                    PasswordHint: '',
+                    Attachments: []
+                });
+
+                $rootScope.$broadcast('loadMessage', message);
+            }
         }
     };
 
@@ -260,7 +283,7 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
         if (mailbox === 'search') {
             params.Address = $stateParams.address;
             params.Label = $stateParams.label;
-            params.Keyword = $stateParams.words;
+            params.Keyword = $stateParams.keyword;
             params.To = $stateParams.to;
             params.From = $stateParams.from;
             params.Subject = $stateParams.subject;
@@ -304,7 +327,7 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
 
             deferred.resolve(elements);
         }, function(error) {
-            notify({message: 'Error during quering conversations', classes: 'notification-danger'}); // TODO translate
+            notify({message: gettextCatalog.getString('Error during quering conversations', null, 'Error'), classes: 'notification-danger'});
             $log.error(error);
         });
 
@@ -588,57 +611,40 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
 
     // Let users change the col/row modes.
     $scope.changeLayout = function(mode) {
-
         var newLayout;
 
         if (mode === 'rows' && $rootScope.layoutMode!=='rows') {
             newLayout = 1;
-        }
-        else if (mode === 'columns' && $rootScope.layoutMode!=='columns') {
+        } else if (mode === 'columns' && $rootScope.layoutMode!=='columns') {
             newLayout = 0;
-        }
-        else if (mode === 'mobile') {
+        } else if (mode === 'mobile') {
             $rootScope.mobileMode = true;
         }
-
-        var error = function(error) {
-            $log.error(error);
-            notify({message: 'Error during saving layout mode', classes: 'notification-danger'});
-        };
 
         if (
             (mode === 'columns' && $rootScope.layoutMode!=='columns') ||
             (mode === 'rows' && $rootScope.layoutMode!=='rows')
         ) {
             networkActivityTracker.track(
-                Setting.setViewlayout({
-                    "ViewLayout": newLayout
-                }).$promise.then(
-                    function(response) {
-                        if(response.Code === 1000) {
-                            notify({
-                                message: $translate.instant('LAYOUT_SAVED'),
-                                classes: 'notification-success'
-                            });
+                Setting.setViewlayout({ViewLayout: newLayout})
+                .then(function(result) {
+                        if (result.data && result.data.Code === 1000) {
+                            notify({message: gettextCatalog.getString('Layout saved', null), classes: 'notification-success'});
                             $rootScope.mobileMode = false;
                             $rootScope.layoutMode = mode;
                             authentication.user.ViewLayout = newLayout;
                             $rootScope.mobileResponsive();
-                        } else if (response.Error) {
-                            error(response.Error);
+                        } else if (result.data && result.data.Error) {
+                            notify({message: result.data.Error, classes: 'notification-danger'});
                         } else {
-                            error();
+                            notify({message: 'Error during saving layout mode', classes: 'notification-danger'});
                         }
-                    },
-                    function(error) {
-                        error(error);
                     }
                 )
             );
         }
 
         angular.element('#pm_toolbar-desktop a').tooltip('hide');
-
     };
 
     /**
@@ -881,8 +887,8 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
      * @param {String} mailbox
      */
     $scope.empty = function(mailbox) {
-        var title = $translate.instant('CONFIRMATION');
-        var message = $translate.instant('ARE_YOU_SURE?') + ' ' + $translate.instant('THIS_CANNOT_BE_UNDONE.');
+        var title = gettextCatalog.getString('Confirmation', null);
+        var message = gettextCatalog.getString('Are you sure?') + ' ' + gettextCatalog.getString('This cannot be undone.', null);
         var promise;
 
         if(['drafts', 'spam', 'trash'].indexOf(mailbox) !== -1) {
@@ -909,7 +915,7 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
                                     // Close modal
                                     confirmModal.deactivate();
                                     // Notify user
-                                    notify({message: $translate.instant('FOLDER_EMPTIED'), classes: 'notification-success'});
+                                    notify({message: gettextCatalog.getString('Folder emptied', null), classes: 'notification-success'});
                                 },
                                 function(error) {
                                     notify({message: 'Error during the empty request', classes: 'notification-danger'});

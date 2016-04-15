@@ -1,6 +1,5 @@
 angular.module('proton.autocomplete', [])
-.constant("regexEmail", /(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))/gi)
-.directive('autocomplete', function ($timeout, $filter, regexEmail, authentication) {
+.directive('autocomplete', function ($timeout, regexEmail, authentication) {
     return {
         restrict: 'E',
         templateUrl: 'templates/directives/autocomplete.tpl.html',
@@ -18,6 +17,7 @@ angular.module('proton.autocomplete', [])
             var ESC_KEY = 27;
             var SPACE_KEY = 32;
             var timeoutChange;
+            var timeoutBlur;
 
             // Variables
             scope.params = {
@@ -98,15 +98,6 @@ angular.module('proton.autocomplete', [])
                 return emails;
             };
 
-            /**
-            * Highlight value searched in the autocompletion
-            */
-            var highlight = function(string, word) {
-                var regex = new RegExp('(' + word + ')', 'gi');
-
-                return string.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(regex, "<strong>$1</strong>");
-            };
-
             // Functions
             /**
             * Function called at the initialization of this directive
@@ -135,7 +126,10 @@ angular.module('proton.autocomplete', [])
             };
 
             scope.onBlur = function() {
-                scope.onSubmit();
+                $timeout.cancel(timeoutBlur);
+                timeoutBlur = $timeout(function() {
+                    scope.onSubmit();
+                }, 250);
             };
 
             scope.onRemove = function(index) {
@@ -168,20 +162,30 @@ angular.module('proton.autocomplete', [])
             scope.onChange = function() {
                 $timeout.cancel(timeoutChange);
                 timeoutChange = $timeout(function() {
-                    var contacts = _.map(authentication.user.Contacts, function(contact) {
-                        return { Name: contact.Name, Address: contact.Email };
-                    });
-                    var byName = $filter('filter')(contacts, {Name: scope.params.newValue});
-                    var byAddress = $filter('filter')(contacts, {Address: scope.params.newValue});
-                    var list = $filter('limitTo')(_.union(byName, byAddress), 10); // We limit the number of contact by 10
+                    if (scope.params.newValue.length > 0) {
+                        var value = scope.params.newValue.toLowerCase();
+                        var list = [];
+                        var contacts = _.map(authentication.user.Contacts, function(contact) {
+                            return { Name: contact.Name, Address: contact.Email };
+                        });
 
-                    if(scope.params.newValue.length > 0) {
+                        _.each(contacts, function(contact) {
+                            // We limit the number of contact by 10
+                            if (list.length <= 10) {
+                                if (contact.Name.toLowerCase().startsWith(value)) {
+                                    list.push(contact);
+                                } else if (contact.Address.toLowerCase().startsWith(value)) {
+                                    list.push(contact);
+                                }
+                            }
+                        });
+
                         scope.params.contactsFiltered = list;
                     } else {
                         scope.params.contactsFiltered = [];
                     }
 
-                    if(scope.params.contactsFiltered.length > 0) {
+                    if (scope.params.contactsFiltered.length > 0) {
                         scope.onOpen();
                     } else {
                         scope.onClose();
@@ -254,14 +258,14 @@ angular.module('proton.autocomplete', [])
 
 .directive('autosize', function() {
     return {
-        require: 'ngModel',
-        link: function(scope, element, attrs, ctrl) {
-            var span, resize;
+        link: function(scope, element, attrs) {
+            var span, resize, change, input;
 
+            input = angular.element(element);
             span = angular.element('<span></span>');
             span.css('display', 'none')
-            .css('visibility', 'hidden')
-            .css('width', 'auto');
+                .css('visibility', 'hidden')
+                .css('width', 'auto');
 
             element.parent().append(span);
 
@@ -287,16 +291,14 @@ angular.module('proton.autocomplete', [])
                 }
             };
 
-            ctrl.$parsers.unshift(function(value) {
-                resize(value);
+            change = function(event) {
+                resize(input.val());
+            };
 
-                return value;
-            });
+            input.bind('input', change);
 
-            ctrl.$formatters.unshift(function(value) {
-                resize(value);
-
-                return value;
+            scope.$on('$destroy', function() {
+                input.unbind('input', change);
             });
         }
     };
