@@ -17,7 +17,7 @@
     </span>
     <span class="pm_buttons" ng-class="{ disabled: numberElementSelected === 0 }">
         <a href="#" pt-tooltip-translate="Move to trash" ng-click="move('trash')" ng-hide="{{ 'secured.trash.**' | includedByState }}" ng-class="{ disabled: numberElementSelected === 0 }" class="fa fa-trash-o" pt-tooltip-translate-context="Action"></a>
-        <a pt-tooltip-translate="Move to inbox" ng-click="move('inbox')" ng-hide="{{ ('secured.inbox.**' | includedByState) || ('secured.spam.**' | includedByState) }}" ng-class="{ disabled: numberElementSelected === 0 }" class="fa fa-inbox divider" pt-tooltip-translate-context="Action"></a>
+        <a pt-tooltip-translate="Move to inbox" ng-click="move('inbox')" ng-hide="{{ ('secured.inbox.**' | includedByState) || ('secured.spam.**' | includedByState) || ('secured.sent.**' | includedByState) }}" ng-class="{ disabled: numberElementSelected === 0 }" class="fa fa-inbox divider" pt-tooltip-translate-context="Action"></a>
         <a pt-tooltip-translate="Move to archive" ng-click="move('archive')" ng-hide="{{ 'secured.archive.**' | includedByState }}" ng-class="{ disabled: numberElementSelected === 0 }" class="fa fa-archive divider" pt-tooltip-translate-context="Action"></a>
         <a pt-tooltip-translate="Move to spam" ng-click="move('spam')" ng-hide="{{ 'secured.spam.**' | includedByState }}" ng-class="{ disabled: numberElementSelected === 0 }" class="fa fa-ban divider" pt-tooltip-translate-context="Action"></a>
         <a pt-tooltip-translate="Delete" ng-click="delete()" ng-show="{{ 'secured.trash.**' | includedByState }}" ng-class="{ disabled: numberElementSelected === 0 }" class="fa fa-times-circle-o divider" pt-tooltip-translate-context="Action"></a>
@@ -87,10 +87,10 @@
     </span>
     <div class="pull-right action">
         <span class="pm_buttons layout" id="tour-layout">
-            <a href="#" pt-tooltip-translate="Change layout" ng-class="{ 'active': layoutMode === 'columns' }" ng-click="changeLayout('columns')">
+            <a href="#" pt-tooltip-translate="Change layout" pt-tooltip-translate-context="Action" ng-class="{ 'active': layoutMode === 'columns' }" ng-click="changeLayout('columns')">
                 <img src="/assets/img/columnview.svg" />
             </a>
-            <a href="#" pt-tooltip-translate="Change layout" class="divider" ng-class="{ 'active': layoutMode === 'rows' }" ng-click="changeLayout('rows')">
+            <a href="#" pt-tooltip-translate="Change layout" pt-tooltip-translate-context="Action" class="divider" ng-class="{ 'active': layoutMode === 'rows' }" ng-click="changeLayout('rows')">
                 <img src="/assets/img/rowview.svg" />
             </a>
         </span>

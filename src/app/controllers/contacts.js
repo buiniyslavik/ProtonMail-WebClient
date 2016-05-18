@@ -3,24 +3,25 @@ angular.module("proton.controllers.Contacts", [
 ])
 
 .controller("ContactsController", function(
+    $filter,
+    $log,
     $rootScope,
     $scope,
     $state,
-    $log,
-    gettextCatalog,
     $stateParams,
-    $filter,
-    tools,
-    authentication,
-    Contact,
-    confirmModal,
-    contactModal,
     alertModal,
+    authentication,
+    confirmModal,
+    CONSTANTS,
+    Contact,
+    contactModal,
     dropzoneModal,
     eventManager,
+    gettextCatalog,
     Message,
     networkActivityTracker,
-    notify
+    notify,
+    tools
 ) {
     // Variables
     var lastChecked = null;
@@ -29,7 +30,7 @@ angular.module("proton.controllers.Contacts", [
     $scope.currentPage = 1;
     $scope.params = { searchContactInput: ''};
     $scope.editing = false;
-    $scope.numPerPage = 40;
+    $scope.numPerPage = CONSTANTS.ELEMENTS_PER_PAGE;
     $scope.sortBy = 'Name';
 
     // Listeners
@@ -139,7 +140,7 @@ angular.module("proton.controllers.Contacts", [
                 confirm: function() {
                     networkActivityTracker.track(
                         Contact.clear().then(function(response) {
-                            notify({message: gettextCatalog.getString('Contacts deleted', null), classes: 'notification-success'});
+                            notify({message: gettextCatalog.getString('Contacts deleted', null, 'Info'), classes: 'notification-success'});
                             eventManager.call();
                         }, function(response) {
                             $log.error(response);
@@ -183,7 +184,7 @@ angular.module("proton.controllers.Contacts", [
                         Contact.delete({
                             IDs : deletedIDs
                         }).then(function(response) {
-                            notify({message: gettextCatalog.getString('Contacts deleted', null), classes: 'notification-success'});
+                            notify({message: gettextCatalog.getString('Contacts deleted', null, 'Info'), classes: 'notification-success'});
                             confirmModal.deactivate();
                             eventManager.call();
                         }, function(error) {
@@ -204,7 +205,7 @@ angular.module("proton.controllers.Contacts", [
             var match = _.findWhere(authentication.user.Contacts, {Email: email});
 
             if (match) {
-                notify({message: gettextCatalog.getString('A contact already exists for this email address.', null), classes: 'notification-danger'});
+                notify({message: gettextCatalog.getString('A contact already exists for this email address', null), classes: 'notification-danger'});
                 contactModal.deactivate();
             } else {
                 var newContact = {
@@ -410,9 +411,9 @@ angular.module("proton.controllers.Contacts", [
                                 });
 
                                 if(added === 1) {
-                                    notify({message: added + ' ' + gettextCatalog.getString('Contact imported', null), classes: 'notification-success'});
+                                    notify({message: added + ' ' + gettextCatalog.getString('Contact imported', null, 'Info'), classes: 'notification-success'});
                                 } else if(added > 1) {
-                                    notify({message: added + ' ' + gettextCatalog.getString('Contacts imported', null), classes: 'notification-success'});
+                                    notify({message: added + ' ' + gettextCatalog.getString('Contacts imported', null, 'Info'), classes: 'notification-success'});
                                 }
 
                                 _.each(Object.keys(errors), function(key) {

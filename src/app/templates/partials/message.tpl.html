@@ -86,7 +86,7 @@ ng-class="{
         <div class="recipients-details" ng-show="toggleDetails === true">
             <div ng-if="message.ToList.length" class="toGroup">
                 <span class="from">
-                    <span class="where" translate>To</span>:
+                    <span class="where" translate translate-context="Title">To</span>:
                 </span>
                 <ul>
                     <li class="contact" ng-repeat="email in message.ToList">
@@ -100,7 +100,7 @@ ng-class="{
             </div>
             <div ng-if="message.CCList.length" class="ccGroup" ng-show="message.expand === true">
                 <span class="from">
-                    <span class="where" translate>CC</span>:
+                    <span class="where" translate translate-context="Title">CC</span>:
                 </span>
                 <ul>
                    <li class="contact" ng-repeat="email in message.CCList">
@@ -114,7 +114,7 @@ ng-class="{
             </div>
             <div ng-if="message.BCCList.length && senderIsMe(message)" class="bccGroup" ng-show="message.expand === true">
                 <span class="from">
-                    <span class="where" translate>BCC</span>:
+                    <span class="where" translate translate-context="Title">BCC</span>:
                 </span>
                 <ul>
                    <li class="contact" ng-repeat="email in message.BCCList">
@@ -142,7 +142,8 @@ ng-class="{
                 ng-style="getStyleLabel(labelID)"
                 ng-click="detachLabel(labelID); $event.stopPropagation();"
                 ng-show="getLabel(labelID).Name">
-                    {{ getLabel(labelID).Name }} <a class="close fa fa-times"></a>
+                    <span>{{ getLabel(labelID).Name }}</span> 
+                    <a class="close">&times;</a>
                 </label>
             </span>
         </div>
@@ -151,7 +152,7 @@ ng-class="{
 
             <div class="actions pull-right">
                 <span class="pm_buttons">
-                    <a class="pm_trigger open-label pull-left" pt-tooltip-translate="Add" pt-tooltip-translate-comment="Tooltip" dropdown ng-click="message.labelDropdownOpen = !message.labelDropdownOpen">
+                    <a class="pm_trigger open-label pull-left" pt-tooltip-translate="Add" pt-tooltip-translate-context="Action" pt-tooltip-translate-comment="Tooltip" dropdown ng-click="message.labelDropdownOpen = !message.labelDropdownOpen">
                         <small><i class="fa fa-tag"></i> <i class="fa fa-angle-down"></i></small>
                     </a>
                     <span class="pm_dropdown right wide pull-left">
@@ -172,7 +173,7 @@ ng-class="{
                         <i class="fa fa-angle-down"></i>
                     </a>
                     <span class="pm_dropdown wide right">
-                        <a ng-click="move('inbox')">
+                        <a ng-click="move('inbox')" ng-hide="message.Type === 2 || message.Type === 3">
                             <i class="fa fa-inbox"></i>
                             <span translate translate-context="Action">Move to inbox</span>
                         </a>
@@ -242,7 +243,9 @@ ng-class="{
 
     <div class="frame" ng-show="message.expand">
         <loader-tag ng-if="message.decrypting === true"></loader-tag>
-        <div class="email" ng-class="{'plain': isPlain}" ng-if="message.viewMode === 'html'" ng-bind-html="message.decryptedBody" transform-links hide-first-blockquote scroll="true"></div>
+        <p class="alert alert-danger" ng-if="message.SpamScore === 100" translate translate-context="Info">This email seems to be from a ProtonMail address but came from outside our system and failed our authentication requirements. It may be spoofed or improperly forwarded!</p>
+        <p class="alert alert-danger" ng-if="message.SpamScore === 101" translate translate-context="Info">This email has failed its domain's authentication requirements. It may be spoofed or improperly forwarded!</p>
+        <div class="email" ng-class="{'plain': isPlain}" ng-if="message.viewMode === 'html'" ng-bind-html="message.decryptedBody" transform-links hide-first-blockquote mail-to scroll="true"></div>
         <div class="alert alert-danger clearfix" role="alert" ng-if="message.failedDecryption">
             <span class="pull-left fa fa-exclamation-triangle"></span>
             <strong translate translate-context="Error">Decryption error</strong>

@@ -42,6 +42,7 @@ angular.module("proton.modals", [])
                 $rootScope.modalOpen = true;
                 setTimeout(function() {
                     $('.modal').addClass('in');
+                    window.scrollTo(0, 0);
                 }, 100);
             });
         }
@@ -863,7 +864,7 @@ angular.module("proton.modals", [])
                             notify({message: gettextCatalog.getString('Invalid coupon', null, 'Error'), classes: 'notification-danger'});
                             this.coupon = '';
                         } else {
-                            notify({message: gettextCatalog.getString('Coupon accepted', null), classes: 'notification-success'});
+                            notify({message: gettextCatalog.getString('Coupon accepted', null, 'Info'), classes: 'notification-success'});
                         }
                         this.valid = result.data;
                     }
@@ -1055,7 +1056,8 @@ angular.module("proton.modals", [])
                     })
                 ).then(function(result) {
                     if(angular.isDefined(result.data) && result.data.Code === 1000) {
-                        notify({message: gettextCatalog.getString('Address added', null), classes: 'notification-success'});
+                        /// notification
+                        notify({message: gettextCatalog.getString('Address added', null, 'Info'), classes: 'notification-success'});
                         this.domain.Addresses.push(result.data.Address);
                         eventManager.call();
                     } else if(angular.isDefined(result.data) && result.data.Code === 31006) {
@@ -1734,6 +1736,54 @@ angular.module("proton.modals", [])
             this.cancel = function() {
                 params.cancel();
             };
+        }
+    });
+})
+
+.factory('filterModal', function(pmModal) {
+    return pmModal({
+        controllerAs: 'ctrl',
+        templateUrl: 'templates/modals/filter.tpl.html',
+        controller: function(params) {
+            this.filter = params.filter || {};
+
+            this.cancel = function() {
+                params.close();
+            };
+        }
+    });
+})
+
+.factory('filterAddressModal', function($timeout, pmModal, IncomingDefault, networkActivityTracker, notify) {
+    return pmModal({
+        controllerAs: 'ctrl',
+        templateUrl: 'templates/modals/filterAddress.tpl.html',
+        controller: function(params) {
+            this.filter = {
+                Email: '',
+                Location: params.location
+            };
+
+            this.create = function() {
+                networkActivityTracker.track(
+                    IncomingDefault.add(this.filter)
+                    .then(function(result) {
+                        if (result.data && result.data.Code === 1000) {
+                            params.add(result.data.IncomingDefault);
+                        } else if (result.data && result.data.Error) {
+                            notify({message: result.data.Error, classes: 'notification-danger'});
+                        }
+                    })
+                );
+            }.bind(this);
+
+            this.cancel = function() {
+                params.close();
+            };
+
+            $timeout(function() {
+                angular.element('#emailAddress').focus();
+            });
         }
     });
 })

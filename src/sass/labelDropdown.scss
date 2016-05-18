@@ -84,7 +84,7 @@
 				span {
 					white-space: nowrap;
 					display: inline-block;
-					max-width: 7rem;
+					max-width: 90px;
 					overflow: hidden;
 					text-overflow: ellipsis;
 				}
@@ -103,6 +103,9 @@
 				width: 20px;
 				float: left;
 				display: block;
+				&:hover {
+					font-size: 20px;
+				}
 			}
 		}
 	}

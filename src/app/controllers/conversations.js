@@ -18,7 +18,6 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
     Message,
     eventManager,
     Label,
-    regexEmail,
     authentication,
     cache,
     confirmModal,
@@ -183,31 +182,6 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
         if ($rootScope.scrollPosition) {
             $('#content').scrollTop($rootScope.scrollPosition);
             $rootScope.scrollPosition = null;
-        }
-
-        if ($stateParams.email) {
-            var emails = $stateParams.email.match(regexEmail);
-
-            if (emails) {
-                var message = new Message();
-                var ToList = [];
-
-                ToList.push({
-                    Address: emails[0],
-                    Name: emails[0]
-                });
-
-                _.defaults(message, {
-                    ToList: ToList,
-                    CCList: [],
-                    BCCList: [],
-                    Subject: '',
-                    PasswordHint: '',
-                    Attachments: []
-                });
-
-                $rootScope.$broadcast('loadMessage', message);
-            }
         }
     };
 
@@ -779,9 +753,11 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
      * @param {String} id
      */
     $scope.getStyleLabel = function(id) {
+        var color = $scope.getLabel(id).Color;
+
         return {
-            color: $scope.getLabel(id).Color,
-            borderColor: $scope.getLabel(id).Color
+            border: '2px solid ' +  color,
+            color: color
         };
     };
 
@@ -887,8 +863,8 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
      * @param {String} mailbox
      */
     $scope.empty = function(mailbox) {
-        var title = gettextCatalog.getString('Confirmation', null);
-        var message = gettextCatalog.getString('Are you sure?') + ' ' + gettextCatalog.getString('This cannot be undone.', null);
+        var title = gettextCatalog.getString('Confirmation', null, 'Title');
+        var message = gettextCatalog.getString('Are you sure?', null, 'Info') + ' ' + gettextCatalog.getString('This cannot be undone.', null);
         var promise;
 
         if(['drafts', 'spam', 'trash'].indexOf(mailbox) !== -1) {
@@ -905,23 +881,19 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
                             promise = Message.emptyTrash().$promise;
                         }
 
-
-
                         networkActivityTracker.track(
-                            promise.then(
-                                function(result) {
+                            promise.then(function(response) {
+                                if (response.Code === 1000) {
                                     // Call to empty cache conversation
                                     cache.empty(mailbox);
                                     // Close modal
                                     confirmModal.deactivate();
                                     // Notify user
                                     notify({message: gettextCatalog.getString('Folder emptied', null), classes: 'notification-success'});
-                                },
-                                function(error) {
-                                    notify({message: 'Error during the empty request', classes: 'notification-danger'});
-                                    $log.error(error);
+                                    // Call event manager to update the storage space
+                                    eventManager.call();
                                 }
-                            )
+                            })
                         );
                     },
                     cancel: function() {

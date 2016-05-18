@@ -9,7 +9,6 @@ angular.module('proton', [
     'ngRoute',
     'ngSanitize',
     'pikaday',
-    // 'SmoothScrollbar',
     'ui.router',
 
     // Constant
@@ -22,7 +21,6 @@ angular.module('proton', [
     'proton.routes',
 
     // Models
-    'proton.models.keys',
     'proton.models.addresses',
     'proton.models.attachment',
     'proton.models.bug',
@@ -31,6 +29,9 @@ angular.module('proton', [
     'proton.models.domains',
     'proton.models.eo',
     'proton.models.events',
+    'proton.models.filter',
+    'proton.models.incomingDefaults',
+    'proton.models.keys',
     'proton.models.label',
     'proton.models.logs',
     'proton.models.memberKeys',
@@ -83,6 +84,7 @@ angular.module('proton', [
     'proton.transformation',
     'proton.translate',
     'proton.wizard',
+    'proton.rightClick',
 
     // Filters
     'proton.filters',
