@@ -58,6 +58,7 @@ angular.module('proton', [
     'proton.networkActivity',
     'proton.pmcw',
     'proton.tools',
+    'proton.desktopNotifications',
 
     // Directives
     'proton.autocomplete',
@@ -65,6 +66,7 @@ angular.module('proton', [
     'proton.drag',
     'proton.dropdown',
     'proton.dropzone',
+    'proton.hotkeys',
     'proton.enter',
     'proton.height',
     'proton.heightOutside',

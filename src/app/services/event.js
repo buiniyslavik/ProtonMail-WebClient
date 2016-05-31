@@ -3,19 +3,21 @@ angular.module("proton.event", ["proton.constants"])
 		$cookies,
 		$location,
 		$log,
+		$q,
 		$rootScope,
 		$state,
 		$stateParams,
 		$timeout,
 		$window,
-		$q,
 		authentication,
 		cache,
-		generateModal,
 		cacheCounters,
 		CONSTANTS,
 		Contact,
+		desktopNotifications,
 		Events,
+		generateModal,
+		gettextCatalog,
 		Label,
 		notify,
 		pmcw
@@ -174,7 +176,7 @@ angular.module("proton.event", ["proton.constants"])
 				}
 			},
 			manageMessageCounts: function(counts) {
-				if(angular.isDefined(counts)) {
+				if (angular.isDefined(counts)) {
 					var labelIDs = ['0', '1', '2', '3', '4', '6', '10'].concat(_.map(authentication.user.Labels, function(label) { return label.ID; }) || []);
 
 					_.each(labelIDs, function(labelID) {
@@ -186,10 +188,12 @@ angular.module("proton.event", ["proton.constants"])
 							cacheCounters.updateMessage(labelID, 0, 0);
 						}
 					});
+
+					cache.callRefresh();
 				}
 			},
 			manageConversationCounts: function(counts) {
-				if(angular.isDefined(counts)) {
+				if (angular.isDefined(counts)) {
 					var labelIDs = ['0', '1', '2', '3', '4', '6', '10'].concat(_.map(authentication.user.Labels, function(label) { return label.ID; }) || []);
 
 					_.each(labelIDs, function(labelID) {
@@ -201,6 +205,8 @@ angular.module("proton.event", ["proton.constants"])
 							cacheCounters.updateConversation(labelID, 0, 0);
 						}
 					});
+
+					cache.callRefresh();
 				}
 			},
 			manageThreadings: function(messages, conversations) {
@@ -216,6 +222,20 @@ angular.module("proton.event", ["proton.constants"])
 
 				if(events.length > 0) {
 					cache.events(events, true);
+				}
+			},
+			manageDesktopNotifications: function(messages) {
+				if (angular.isDefined(messages)) {
+					_.each(messages, function(message) {
+						if (message.Action === 1 && message.Message.IsRead === 0 && message.Message.LabelIDs.indexOf(CONSTANTS.MAILBOX_IDENTIFIERS.inbox) !== -1) {
+							var title = gettextCatalog.getString('New mail from', null, 'Info') + ' ' + message.Message.Sender.Name || message.Message.Sender.Address;
+
+							desktopNotifications.create(title, {
+					            body: message.Message.Subject,
+					            icon: '/assets/img/notification-badge.gif'
+					        });
+						}
+					});
 				}
 			},
 			manageStorage: function(storage) {
@@ -308,6 +328,7 @@ angular.module("proton.event", ["proton.constants"])
 					this.manageContacts(data.Contacts);
 					this.manageUser(data.User);
 					this.manageThreadings(data.Messages, data.Conversations);
+					this.manageDesktopNotifications(data.Messages);
 					this.manageMessageCounts(data.MessageCounts);
 					this.manageConversationCounts(data.ConversationCounts);
 					this.manageStorage(data.UsedSpace);

@@ -164,6 +164,22 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
             $scope.move(name);
         });
 
+        $scope.$on('read', function(event) {
+            $scope.read();
+        });
+
+        $scope.$on('unread', function(event) {
+            $scope.unread();
+        });
+
+        $scope.$on('nextConversation', function(event) {
+            $scope.nextConversation();
+        });
+
+        $scope.$on('previousConversation', function(event) {
+            $scope.previousConversation();
+        });
+
         $scope.$on('$destroy', $scope.stopWatchingEvent);
     };
 
@@ -693,7 +709,7 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
      * @param {Object} element - conversation or message
      */
     $scope.toggleStar = function(element) {
-        if($scope.starred(element) === true) {
+        if ($scope.starred(element) === true) {
             $scope.unstar(element);
         } else {
             $scope.star(element);
@@ -707,7 +723,7 @@ angular.module("proton.controllers.Conversations", ["proton.constants"])
     $scope.star = function(element) {
         var type = tools.typeList();
 
-        if(type === 'conversation') {
+        if (type === 'conversation') {
             action.starConversation(element.ID);
         } else if(type === 'message') {
             action.starMessage(element.ID);
